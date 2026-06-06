@@ -1,0 +1,915 @@
+/* =====================================================
+   TICKET TO RIDE — SCORE TRACKER
+   Vintage 1950s Railway Poster Theme
+   Mobile-first, iPad/desktop responsive
+   ===================================================== */
+
+/* --- Design Tokens (colour palette & sizes) --- */
+:root {
+    --cream:      #fff8e7;
+    --cream-dark: #f0e6d0;
+    --red:        #c0392b;
+    --red-dark:   #8b1a1a;
+    --navy:       #1b2a4a;
+    --navy-light: #2c3e68;
+    --gold:       #d4a017;
+    --gold-light: #f0c040;
+    --text-dark:  #2c1810;
+    --text-mid:   #5c3d2e;
+    --white:      #ffffff;
+    --border:     #d0c4a8;
+
+    --shadow-sm:  0 2px 6px rgba(0,0,0,0.15);
+    --shadow-md:  0 4px 14px rgba(0,0,0,0.2);
+    --radius:     8px;
+    --radius-lg:  12px;
+}
+
+/* --- Reset & Base --- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Lato', sans-serif;
+    background-color: var(--cream);
+    color: var(--text-dark);
+    min-height: 100vh;
+    /* Subtle diagonal texture evocative of aged paper */
+    background-image:
+        repeating-linear-gradient(
+            135deg,
+            transparent,
+            transparent 40px,
+            rgba(27,42,74,0.02) 40px,
+            rgba(27,42,74,0.02) 42px
+        );
+}
+
+/* Remove number-input spinners globally (clean look on mobile) */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* =====================================================
+   SCREEN MANAGEMENT
+   Only the .active screen is visible at any time
+   ===================================================== */
+.screen          { display: none; flex-direction: column; min-height: 100vh; }
+.screen.active   { display: flex; }
+.hidden          { display: none !important; }
+
+/* =====================================================
+   LOADING SCREEN
+   ===================================================== */
+#screen-loading {
+    align-items: center;
+    justify-content: center;
+    background: var(--navy);
+}
+
+.loading-content { text-align: center; }
+
+.train-loader {
+    font-size: 4rem;
+    display: block;
+    animation: chug 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes chug {
+    from { transform: translateX(-6px) rotate(-2deg); }
+    to   { transform: translateX(6px)  rotate(2deg);  }
+}
+
+.loading-text {
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.3em;
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin-top: 1.25rem;
+    text-transform: uppercase;
+}
+
+/* =====================================================
+   SHARED: LOGO / TITLE BLOCK
+   ===================================================== */
+.logo { text-align: center; margin-bottom: 1.75rem; }
+
+.logo h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    color: var(--red);
+    /* Letterpress shadow */
+    text-shadow: 2px 2px 0 var(--navy), 3px 3px 0 rgba(0,0,0,0.15);
+    line-height: 1.1;
+}
+
+.logo .subtitle {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin-top: 0.25rem;
+}
+
+/* =====================================================
+   SHARED: CARDS
+   ===================================================== */
+.card {
+    background: var(--white);
+    border: 3px solid var(--navy);
+    border-radius: var(--radius-lg);
+    padding: 1.75rem 1.5rem;
+    box-shadow: var(--shadow-md);
+    /* Inner gold border line — vintage ticket feel */
+    position: relative;
+}
+.card::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1px solid var(--gold);
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.card-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--navy);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+/* =====================================================
+   SETUP SCREEN
+   ===================================================== */
+#screen-setup {
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.25rem;
+}
+
+.setup-container {
+    width: 100%;
+    max-width: 440px;
+}
+
+/* =====================================================
+   PIN SCREEN
+   ===================================================== */
+#screen-pin {
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.25rem;
+}
+
+.pin-container {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.train-graphic {
+    margin-bottom: 1.25rem;
+    filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.25));
+}
+.train-graphic svg { width: 220px; height: 70px; }
+
+.pin-card { width: 100%; text-align: center; }
+
+.pin-inputs {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.pin-digit {
+    width: 58px;
+    height: 68px;
+    text-align: center;
+    font-family: 'Oswald', sans-serif;
+    font-size: 2rem;
+    border: 2px solid var(--navy);
+    border-radius: var(--radius);
+    background: var(--cream);
+    color: var(--navy);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pin-digit:focus {
+    outline: none;
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.2);
+    background: var(--white);
+}
+
+.pin-error {
+    color: var(--red);
+    font-size: 0.875rem;
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+}
+
+/* =====================================================
+   SHARED: FORMS
+   ===================================================== */
+.form-group { margin-bottom: 1.25rem; }
+
+.form-group label {
+    display: block;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin-bottom: 0.45rem;
+}
+
+.label-hint {
+    font-size: 0.75rem;
+    color: var(--text-mid);
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Lato', sans-serif;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"] {
+    width: 100%;
+    padding: 0.65rem 0.875rem;
+    border: 2px solid var(--navy);
+    border-radius: var(--radius);
+    background: var(--cream);
+    font-family: 'Lato', sans-serif;
+    font-size: 1rem;
+    color: var(--text-dark);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus {
+    outline: none;
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.15);
+    background: var(--white);
+}
+
+.form-group small {
+    display: block;
+    color: var(--text-mid);
+    font-size: 0.8rem;
+    margin-top: 0.3rem;
+}
+
+/* Player tag chips */
+.players-list { margin-bottom: 0.5rem; }
+
+.player-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--navy);
+    color: var(--cream);
+    padding: 0.28rem 0.75rem;
+    border-radius: 20px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    margin: 0.2rem;
+}
+.player-tag button {
+    background: none;
+    border: none;
+    color: var(--gold);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+}
+.player-tag button:hover { color: var(--gold-light); }
+
+.add-player-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.add-player-row input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    border: 2px solid var(--navy);
+    border-radius: var(--radius);
+    background: var(--cream);
+    font-size: 0.95rem;
+    font-family: 'Lato', sans-serif;
+}
+.add-player-row input:focus {
+    outline: none;
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.15);
+}
+
+/* =====================================================
+   SHARED: BUTTONS
+   ===================================================== */
+
+/* Primary — red, full-width by default */
+.btn-primary {
+    display: block;
+    width: 100%;
+    padding: 0.8rem 1.5rem;
+    background: var(--red);
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Oswald', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--red-dark);
+    transition: background 0.15s, transform 0.1s, box-shadow 0.1s;
+}
+.btn-primary:hover  { background: var(--red-dark); }
+.btn-primary:active { transform: translateY(2px); box-shadow: none; }
+
+/* Secondary — outlined navy, auto-width */
+.btn-secondary {
+    display: inline-block;
+    padding: 0.65rem 1.25rem;
+    background: transparent;
+    color: var(--navy);
+    border: 2px solid var(--navy);
+    border-radius: var(--radius);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.btn-secondary:hover { background: var(--navy); color: var(--white); }
+
+/* Small variant */
+.btn-sm { padding: 0.45rem 0.875rem; font-size: 0.82rem; }
+
+/* Settings gear icon */
+.btn-icon {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: background 0.15s;
+    line-height: 1;
+}
+.btn-icon:hover { background: rgba(255,255,255,0.15); }
+
+/* Close (✕) button */
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: var(--text-mid);
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+.btn-close:hover { background: var(--cream); }
+
+/* Danger — outlined red */
+.btn-danger {
+    display: block;
+    width: 100%;
+    padding: 0.65rem 1.25rem;
+    background: transparent;
+    color: var(--red);
+    border: 2px solid var(--red);
+    border-radius: var(--radius);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-danger:hover { background: var(--red); color: var(--white); }
+
+/* Add game button — slightly larger */
+.btn-add-game {
+    font-size: 1.05rem;
+    padding: 0.9rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Celebration button — auto width, centered */
+.btn-celebration {
+    width: auto;
+    display: inline-block;
+    padding: 0.8rem 2.5rem;
+    font-size: 1.1rem;
+}
+
+/* =====================================================
+   MAIN APP — HEADER
+   ===================================================== */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--navy);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+
+.app-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--gold);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+    line-height: 1.1;
+}
+
+.app-subtitle {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(255,248,231,0.7);
+}
+
+/* =====================================================
+   MAIN APP — DECORATIVE TRACK STRIP
+   Red stripe with repeating railway-tie pattern
+   ===================================================== */
+.track-strip {
+    height: 14px;
+    background: var(--red);
+    /* Vertical tie dashes */
+    background-image: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 18px,
+        rgba(0,0,0,0.25) 18px,
+        rgba(0,0,0,0.25) 22px
+    );
+}
+
+/* =====================================================
+   MAIN APP — CONTENT
+   ===================================================== */
+.app-content {
+    flex: 1;
+    padding: 1.25rem;
+    width: 100%;
+    max-width: 780px;
+    margin: 0 auto;
+}
+
+/* Season goal banner */
+.goal-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--navy);
+    color: var(--cream);
+    border-radius: var(--radius);
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 3px solid var(--gold);
+}
+
+.goal-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.goal-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* Empty state placeholder */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    font-family: 'Oswald', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    color: var(--text-mid);
+}
+
+/* =====================================================
+   GROUP SECTION (one per unique player combination)
+   ===================================================== */
+.group-section {
+    background: var(--white);
+    border: 2px solid var(--navy);
+    border-radius: var(--radius-lg);
+    margin-bottom: 1.75rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: var(--navy);
+    color: var(--cream);
+}
+
+.group-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.group-count {
+    font-size: 0.78rem;
+    opacity: 0.65;
+    font-family: 'Lato', sans-serif;
+}
+
+/* =====================================================
+   LEADERBOARD ROWS
+   ===================================================== */
+.leaderboard { padding: 0.75rem; }
+
+.leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.75rem;
+    border-radius: var(--radius);
+    margin-bottom: 0.4rem;
+    transition: background 0.15s;
+}
+.leaderboard-row:last-child { margin-bottom: 0; }
+.leaderboard-row:hover { background: var(--cream); }
+
+/* Gold highlight for first place */
+.leaderboard-row.rank-1 {
+    background: linear-gradient(135deg, #fffbef, #fde68a55);
+    border: 1px solid var(--gold);
+}
+
+.row-rank {
+    min-width: 2rem;
+    text-align: center;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text-mid);
+}
+.row-rank.gold { font-size: 1.2rem; }
+
+.row-name {
+    min-width: 80px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+}
+
+/* Progress bar tracks toward goal */
+.row-progress { flex: 1; }
+
+.progress-track {
+    height: 9px;
+    background: var(--cream-dark);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red), var(--gold));
+    border-radius: 5px;
+    min-width: 3px;
+    transition: width 0.6s cubic-bezier(.4,0,.2,1);
+}
+
+.row-score {
+    min-width: 56px;
+    text-align: right;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--red);
+}
+
+/* =====================================================
+   GAME HISTORY (collapsible)
+   ===================================================== */
+.history-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.65rem 1.25rem;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--cream-dark);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.history-toggle:hover { background: var(--cream); }
+
+.history-arrow { transition: transform 0.2s; }
+.history-arrow.open { transform: rotate(180deg); }
+
+.history-list {
+    display: none;
+    padding: 0.25rem 1rem 0.875rem;
+}
+.history-list.open { display: block; }
+
+.history-game {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--cream-dark);
+    font-size: 0.85rem;
+}
+.history-game:last-child { border-bottom: none; }
+
+.history-date {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.score-chip {
+    background: var(--navy);
+    color: var(--cream);
+    padding: 0.15rem 0.55rem;
+    border-radius: 12px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+}
+
+/* =====================================================
+   MODAL (bottom sheet on mobile, centred on tablet+)
+   ===================================================== */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;   /* bottom sheet on mobile */
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+}
+
+.modal-card {
+    position: relative;
+    background: var(--white);
+    width: 100%;
+    max-width: 480px;
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-top: 4px solid var(--red);
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
+    /* Smooth slide-up feel */
+    animation: slideUp 0.22s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(40px); opacity: 0.5; }
+    to   { transform: translateY(0);    opacity: 1;   }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1.4rem;
+    border-bottom: 1px solid var(--cream-dark);
+}
+.modal-header h2 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.modal-body  { padding: 1.1rem 1.4rem; }
+.modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.875rem 1.4rem;
+    border-top: 1px solid var(--cream-dark);
+}
+.modal-footer .btn-primary   { flex: 2; }
+.modal-footer .btn-secondary { flex: 1; display: inline-block; text-align: center; }
+
+/* Player checkboxes in Add Game modal */
+.player-check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.25rem;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 0.15rem;
+}
+.player-check-item:hover { background: var(--cream); }
+.player-check-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--red);
+    cursor: pointer;
+}
+.player-check-item label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1rem;
+    color: var(--text-dark);
+    cursor: pointer;
+}
+
+/* Score entry rows in Add Game modal */
+.score-section-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    margin: 1rem 0 0.5rem;
+}
+
+.score-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+.score-row label {
+    min-width: 100px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.95rem;
+    color: var(--navy);
+}
+.score-row input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    border: 2px solid var(--navy);
+    border-radius: var(--radius);
+    background: var(--cream);
+    font-size: 1rem;
+    font-family: 'Lato', sans-serif;
+}
+.score-row input:focus {
+    outline: none;
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.15);
+}
+
+/* Danger zone in Settings */
+.danger-zone {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border: 2px dashed var(--red);
+    border-radius: var(--radius);
+}
+.danger-zone h3 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 0.75rem;
+}
+.danger-zone small {
+    display: block;
+    color: var(--text-mid);
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
+}
+
+/* =====================================================
+   CELEBRATION OVERLAY
+   ===================================================== */
+.celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(27,42,74,0.92);
+}
+
+#confetti-canvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.celebration-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 2rem 1.5rem;
+}
+
+.celebration-headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: var(--gold);
+    text-shadow: 2px 2px 0 var(--red);
+    margin-bottom: 0.75rem;
+    animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+    from { transform: scale(1);    }
+    to   { transform: scale(1.04); }
+}
+
+.winner-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.75rem;
+    color: var(--white);
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    margin-bottom: 0.5rem;
+}
+
+.winner-message {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-bottom: 2rem;
+}
+
+/* =====================================================
+   FOOTER
+   ===================================================== */
+.app-footer {
+    background: var(--navy);
+    color: var(--gold);
+    text-align: center;
+    padding: 0.65rem;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.15em;
+}
+
+/* =====================================================
+   RESPONSIVE — Tablet / iPad (≥ 600px)
+   ===================================================== */
+@media (min-width: 600px) {
+
+    .logo h1          { font-size: 3rem; }
+    .app-title        { font-size: 2rem; }
+
+    /* Centre the modal vertically on larger screens */
+    .modal            { align-items: center; }
+    .modal-card {
+        border-radius: var(--radius-lg);
+        max-height: 85vh;
+    }
+
+    .app-content      { padding: 1.75rem 2rem; }
+    .leaderboard-row  { padding: 0.85rem 1rem; }
+
+    .train-graphic svg { width: 260px; height: 82px; }
+}
+
+/* =====================================================
+   RESPONSIVE — Desktop (≥ 1024px)
+   ===================================================== */
+@media (min-width: 1024px) {
+    .app-content { padding: 2rem 2.5rem; }
+    .win-name    { font-size: 3.5rem; }
+}

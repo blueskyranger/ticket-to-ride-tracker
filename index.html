@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket to Ride — Score Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Oswald:wght@400;600&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- =====================================================
+         LOADING SCREEN
+         Shown while Firebase initialises
+    ====================================================== -->
+    <div id="screen-loading" class="screen active">
+        <div class="loading-content">
+            <div class="train-loader">🚂</div>
+            <p class="loading-text">All aboard...</p>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         FIRST-TIME SETUP SCREEN
+         Shown only once when no config exists in Firestore
+    ====================================================== -->
+    <div id="screen-setup" class="screen">
+        <div class="setup-container">
+            <div class="logo">
+                <h1>Ticket to Ride</h1>
+                <p class="subtitle">Score Tracker</p>
+            </div>
+            <div class="card">
+                <h2 class="card-title">First Time Setup</h2>
+
+                <div class="form-group">
+                    <label for="setup-pin">Access PIN <span class="label-hint">(4 digits)</span></label>
+                    <input type="number" id="setup-pin" placeholder="e.g. 1234" maxlength="4">
+                </div>
+
+                <div class="form-group">
+                    <label for="setup-goal">Season Goal <span class="label-hint">(points)</span></label>
+                    <input type="number" id="setup-goal" value="1000" placeholder="1000">
+                    <small>First player to reach this total wins the season</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Players <span class="label-hint">(2 – 6)</span></label>
+                    <div id="setup-players-list"></div>
+                    <div class="add-player-row">
+                        <input type="text" id="setup-player-input" placeholder="Player name"
+                               onkeydown="if(event.key==='Enter') addSetupPlayer()">
+                        <button onclick="addSetupPlayer()" class="btn-secondary btn-sm">Add</button>
+                    </div>
+                </div>
+
+                <button onclick="saveSetup()" class="btn-primary">Start Tracking!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         PIN SCREEN
+         Shown on every visit after first-time setup
+    ====================================================== -->
+    <div id="screen-pin" class="screen">
+        <div class="pin-container">
+
+            <!-- Vintage train graphic -->
+            <div class="train-graphic">
+                <svg viewBox="0 0 220 70" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <!-- Smoke -->
+                    <circle cx="38" cy="10" r="6" fill="#9ca3af" opacity="0.6"/>
+                    <circle cx="48" cy="5"  r="5" fill="#9ca3af" opacity="0.4"/>
+                    <circle cx="56" cy="2"  r="3" fill="#9ca3af" opacity="0.25"/>
+                    <!-- Boiler -->
+                    <rect x="12" y="32" width="22" height="14" rx="7" fill="#7f1d1d"/>
+                    <!-- Chimney -->
+                    <rect x="34" y="18" width="9" height="15" rx="2" fill="#7f1d1d"/>
+                    <!-- Cab -->
+                    <rect x="78" y="20" width="28" height="26" rx="3" fill="#7f1d1d"/>
+                    <!-- Engine body -->
+                    <rect x="22" y="28" width="86" height="24" rx="4" fill="#c0392b"/>
+                    <!-- Windows -->
+                    <rect x="82" y="25" width="11" height="9" rx="1" fill="#fff8e7"/>
+                    <rect x="97" y="25" width="6"  height="9" rx="1" fill="#fff8e7"/>
+                    <!-- Wheels large -->
+                    <circle cx="36"  cy="56" r="10" fill="#1b2a4a" stroke="#d4a017" stroke-width="2"/>
+                    <circle cx="58"  cy="56" r="10" fill="#1b2a4a" stroke="#d4a017" stroke-width="2"/>
+                    <circle cx="80"  cy="56" r="10" fill="#1b2a4a" stroke="#d4a017" stroke-width="2"/>
+                    <!-- Wheel small -->
+                    <circle cx="100" cy="56" r="7"  fill="#1b2a4a" stroke="#d4a017" stroke-width="2"/>
+                    <!-- Hub dots -->
+                    <circle cx="36"  cy="56" r="3" fill="#d4a017"/>
+                    <circle cx="58"  cy="56" r="3" fill="#d4a017"/>
+                    <circle cx="80"  cy="56" r="3" fill="#d4a017"/>
+                    <circle cx="100" cy="56" r="2" fill="#d4a017"/>
+                    <!-- Connecting rod -->
+                    <line x1="36" y1="56" x2="100" y2="56" stroke="#d4a017" stroke-width="2"/>
+                    <!-- Headlamp -->
+                    <circle cx="13" cy="36" r="4" fill="#d4a017" opacity="0.9"/>
+                    <!-- Track -->
+                    <rect x="0" y="65" width="220" height="4" fill="#1b2a4a" rx="2"/>
+                    <!-- Ties -->
+                    <rect x="5"  y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="20" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="35" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="50" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="65" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="80" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="95" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="110" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="125" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="140" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="155" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="170" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="185" y="63" width="4" height="4" fill="#5c3d2e"/>
+                    <rect x="200" y="63" width="4" height="4" fill="#5c3d2e"/>
+                </svg>
+            </div>
+
+            <div class="logo">
+                <h1>Ticket to Ride</h1>
+                <p class="subtitle">Score Tracker</p>
+            </div>
+
+            <div class="card pin-card">
+                <h2 class="card-title">Enter PIN</h2>
+                <div class="pin-inputs">
+                    <input type="number" class="pin-digit" inputmode="numeric" min="0" max="9">
+                    <input type="number" class="pin-digit" inputmode="numeric" min="0" max="9">
+                    <input type="number" class="pin-digit" inputmode="numeric" min="0" max="9">
+                    <input type="number" class="pin-digit" inputmode="numeric" min="0" max="9">
+                </div>
+                <p id="pin-error" class="pin-error hidden">Incorrect PIN — try again.</p>
+                <button onclick="checkPin()" class="btn-primary">Enter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         MAIN APP SCREEN
+         The scoreboard — shown after PIN is verified
+    ====================================================== -->
+    <div id="screen-main" class="screen">
+
+        <header class="app-header">
+            <div>
+                <h1 class="app-title">Ticket to Ride</h1>
+                <p class="app-subtitle">Score Tracker</p>
+            </div>
+            <button onclick="openSettings()" class="btn-icon" title="Settings" aria-label="Settings">⚙️</button>
+        </header>
+
+        <!-- Decorative railway track strip -->
+        <div class="track-strip" aria-hidden="true"></div>
+
+        <main class="app-content">
+
+            <!-- Season goal banner -->
+            <div class="goal-banner">
+                <span class="goal-label">🏆 Season Goal</span>
+                <span class="goal-value" id="goal-display">1,000 pts</span>
+            </div>
+
+            <!-- Add game button -->
+            <button onclick="openAddGame()" class="btn-primary btn-add-game">＋ Add Game Result</button>
+
+            <!-- Group leaderboards are injected here by JavaScript -->
+            <div id="groups-container">
+                <div class="empty-state">
+                    <p>🚂 No games yet — add your first result!</p>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="app-footer">
+            All aboard the scoreboard! 🛤️
+        </footer>
+
+    </div>
+
+    <!-- =====================================================
+         ADD GAME MODAL
+         Slide-up sheet for entering game scores
+    ====================================================== -->
+    <div id="modal-add-game" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="add-game-title">
+        <div class="modal-backdrop" onclick="closeAddGame()"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="add-game-title">Add Game Result</h2>
+                <button onclick="closeAddGame()" class="btn-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Who played?</label>
+                    <div id="game-player-checkboxes"></div>
+                </div>
+                <!-- Score inputs are rendered dynamically when players are checked -->
+                <div id="game-score-inputs"></div>
+                <div class="form-group">
+                    <label for="game-date">Date</label>
+                    <input type="date" id="game-date">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddGame()" class="btn-secondary">Cancel</button>
+                <button onclick="submitGame()" class="btn-primary">Save Result</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         SETTINGS MODAL
+         Change goal, PIN, and manage players
+    ====================================================== -->
+    <div id="modal-settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="modal-backdrop" onclick="closeSettings()"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="settings-title">Settings</h2>
+                <button onclick="closeSettings()" class="btn-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="settings-goal">Season Goal (points)</label>
+                    <input type="number" id="settings-goal" placeholder="1000">
+                </div>
+                <div class="form-group">
+                    <label for="settings-pin">Change PIN <span class="label-hint">(leave blank to keep current)</span></label>
+                    <input type="number" id="settings-pin" placeholder="New 4-digit PIN">
+                </div>
+                <div class="form-group">
+                    <label>Players</label>
+                    <div id="settings-players-list"></div>
+                    <div class="add-player-row">
+                        <input type="text" id="settings-player-input" placeholder="New player name"
+                               onkeydown="if(event.key==='Enter') addSettingsPlayer()">
+                        <button onclick="addSettingsPlayer()" class="btn-secondary btn-sm">Add</button>
+                    </div>
+                </div>
+
+                <!-- Danger zone: new season -->
+                <div class="danger-zone">
+                    <h3>Danger Zone</h3>
+                    <button onclick="newSeason()" class="btn-danger">Start New Season</button>
+                    <small>Archives all current scores and resets the board.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeSettings()" class="btn-secondary">Cancel</button>
+                <button onclick="saveSettings()" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         CELEBRATION OVERLAY
+         Shown when a player hits the season goal
+    ====================================================== -->
+    <div id="celebration" class="celebration hidden" role="alertdialog" aria-labelledby="winner-name">
+        <canvas id="confetti-canvas" aria-hidden="true"></canvas>
+        <div class="celebration-content">
+            <p class="celebration-headline">🏆 ALL ABOARD! 🏆</p>
+            <h2 id="winner-name" class="winner-name"></h2>
+            <p id="winner-message" class="winner-message"></p>
+            <button onclick="closeCelebration()" class="btn-primary btn-celebration">Continue</button>
+        </div>
+    </div>
+
+    <!-- App logic (ES module so Firebase imports work in browser) -->
+    <script type="module" src="app.js"></script>
+
+</body>
+</html>
