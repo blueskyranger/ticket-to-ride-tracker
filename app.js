@@ -186,7 +186,7 @@ async function saveSetup() {
     if (!pin || pin.length !== 4 || isNaN(pin))  { alert("Please enter a 4-digit PIN."); return; }
     if (setupPlayers.length < 2)                  { alert("Please add at least 2 players."); return; }
 
-    const config = { pin, goal, players: setupPlayers, seasonStart: null };
+    const config = { pin, goal, players: setupPlayers, season: 0 };
     await setDoc(doc(db, COL_CONFIG, "config"), config);
 
     state.config        = config;
@@ -265,6 +265,7 @@ async function submitGame() {
         players,
         scores,
         groupKey,
+        season: state.config.season ?? 0,
         createdAt: serverTimestamp()
     });
 
@@ -279,11 +280,11 @@ function listenToGames() {
     const q = query(collection(db, COL_GAMES), orderBy("date", "asc"));
 
     onSnapshot(q, snap => {
-        // Filter to current season only (if a season start date is set)
-        const seasonStart = state.config.seasonStart;
+        // Only show games from the current season number
+        const currentSeason = state.config.season ?? 0;
         state.games = snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(g => !seasonStart || g.date >= seasonStart);
+            .filter(g => (g.season ?? 0) === currentSeason);
 
         renderGroups();
     });
@@ -603,7 +604,8 @@ async function newSeason() {
     );
     if (!confirmed) return;
 
-    const updated = { ...state.config, seasonStart: todayISO() };
+    // Increment the season number — old games stay in Firestore but won't show
+    const updated = { ...state.config, season: (state.config.season ?? 0) + 1 };
     await setDoc(doc(db, COL_CONFIG, "config"), updated);
 
     state.config = updated;
