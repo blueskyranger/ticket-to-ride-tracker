@@ -13,7 +13,7 @@ import { initializeApp }       from "https://www.gstatic.com/firebasejs/12.9.0/f
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import {
     getFirestore,
-    doc, getDoc, setDoc,
+    doc, getDoc, setDoc, deleteDoc,
     collection, addDoc, getDocs,
     query, orderBy, onSnapshot,
     serverTimestamp
@@ -575,13 +575,9 @@ async function resetAllData() {
     }
 
     // Fetch and delete all game documents
+    // Firestore has no bulk delete — we delete each doc individually
     const snap = await getDocs(collection(db, COL_GAMES));
-    const deletions = snap.docs.map(d =>
-        // Firestore has no bulk delete — we delete each doc individually
-        import("https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js")
-            .then(({ deleteDoc }) => deleteDoc(d.ref))
-    );
-    await Promise.all(deletions);
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
 
     // Clear the season start so nothing is filtered
     const updated = { ...state.config, seasonStart: null };
