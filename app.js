@@ -552,6 +552,48 @@ async function saveSettings() {
 }
 
 // =====================================================
+// RESET ALL DATA
+// Permanently deletes every game document from Firestore.
+// Two-step confirmation to prevent accidental use.
+// =====================================================
+async function resetAllData() {
+    // First warning
+    const first = confirm(
+        "⚠️ RESET ALL DATA\n\n" +
+        "This will permanently delete every game result from the database.\n\n" +
+        "Are you sure you want to continue?"
+    );
+    if (!first) return;
+
+    // Second warning — requires typing RESET
+    const second = prompt(
+        "Last chance — this cannot be undone.\n\nType  RESET  to confirm:"
+    );
+    if (second === null || second.trim() !== "RESET") {
+        alert("Reset cancelled.");
+        return;
+    }
+
+    // Fetch and delete all game documents
+    const snap = await getDocs(collection(db, COL_GAMES));
+    const deletions = snap.docs.map(d =>
+        // Firestore has no bulk delete — we delete each doc individually
+        import("https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js")
+            .then(({ deleteDoc }) => deleteDoc(d.ref))
+    );
+    await Promise.all(deletions);
+
+    // Clear the season start so nothing is filtered
+    const updated = { ...state.config, seasonStart: null };
+    await setDoc(doc(db, COL_CONFIG, "config"), updated);
+    state.config = updated;
+
+    sessionStorage.removeItem("ttr_celebrated");
+    closeSettings();
+    alert("All game data has been reset.");
+}
+
+// =====================================================
 // NEW SEASON
 // Records a seasonStart date in config.
 // Games before that date are hidden from the scoreboard.
@@ -611,6 +653,7 @@ window.addSettingsPlayer    = addSettingsPlayer;
 window.removeSettingsPlayer = removeSettingsPlayer;
 window.saveSettings         = saveSettings;
 window.newSeason            = newSeason;
+window.resetAllData         = resetAllData;
 
 // =====================================================
 // BOOT
