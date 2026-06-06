@@ -160,7 +160,7 @@ function applyOffsets(players, goal) {
     }
     buckets.forEach(bucket => {
         bucket.forEach((p, i) => {
-            p.yOffset = (i - (bucket.length - 1) / 2) * 52;
+            p.yOffset = (i - (bucket.length - 1) / 2) * 44;
         });
     });
     return players;
@@ -268,7 +268,6 @@ function buildSVG(players, landmarks, goal) {
   ${forest()}
   ${bridge()}
   ${track()}
-  ${tunnelPortals()}
   ${clouds()}
   ${stations(landmarks, goal)}
   ${playerTokens(players, landmarks, goal)}
@@ -369,6 +368,18 @@ function sky() { return `
   <rect width="1400" height="720" fill="url(#gSky)"/>
   <!-- Warm horizon haze -->
   <ellipse cx="700" cy="390" rx="860" ry="90" fill="#f0d898" opacity="0.22"/>
+  <!-- Cirrus streaks (high thin clouds) -->
+  <path d="M 280 60 C 340 55 400 58 460 54" stroke="white" stroke-width="3" fill="none" opacity="0.35" stroke-linecap="round"/>
+  <path d="M 310 70 C 360 66 420 68 480 65" stroke="white" stroke-width="2" fill="none" opacity="0.28" stroke-linecap="round"/>
+  <path d="M 750 42 C 820 38 890 40 960 36" stroke="white" stroke-width="3" fill="none" opacity="0.3" stroke-linecap="round"/>
+  <path d="M 780 52 C 840 48 905 50 970 46" stroke="white" stroke-width="2" fill="none" opacity="0.25" stroke-linecap="round"/>
+  <path d="M 1100 62 C 1160 58 1210 60 1270 56" stroke="white" stroke-width="2.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+  <!-- Birds (small V silhouettes) -->
+  <path d="M 340 120 C 344 116 348 120 352 116" stroke="#1b3a5a" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <path d="M 350 112 C 354 108 358 112 362 108" stroke="#1b3a5a" stroke-width="1.5" fill="none" opacity="0.55"/>
+  <path d="M 358 122 C 362 118 366 122 370 118" stroke="#1b3a5a" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <path d="M 900 95  C 904 91  908 95  912 91"  stroke="#1b3a5a" stroke-width="1.5" fill="none" opacity="0.55"/>
+  <path d="M 910 104 C 914 100 918 104 922 100" stroke="#1b3a5a" stroke-width="1.5" fill="none" opacity="0.5"/>
 `; }
 
 // =====================================================
@@ -401,6 +412,23 @@ function groundLayer() { return `
             800,385 848,368 904,348 960,342 1020,352 1078,365
             1134,357 1188,334 1232,300 1278,298 1328,364 1362,404
             1400,432 1400,455 0,455"/>
+  <!-- Mid-ground meadow band (subtle rolling hills in the distance) -->
+  <polygon fill="#8ab860" opacity="0.18"
+    points="0,455 120,445 240,448 360,440 480,432 580,426 680,432
+            780,438 880,430 980,436 1080,440 1180,432 1280,438 1400,448
+            1400,475 0,475"/>
+  <!-- Field patches — subtle diagonal texture suggestion -->
+  <rect x="150" y="455" width="120" height="35" fill="#a8c870" opacity="0.12" rx="2"/>
+  <rect x="320" y="448" width="90"  height="30" fill="#90b858" opacity="0.12" rx="2"/>
+  <rect x="860" y="445" width="110" height="32" fill="#a8c870" opacity="0.12" rx="2"/>
+  <rect x="1080" y="448" width="100" height="30" fill="#90b858" opacity="0.12" rx="2"/>
+  <!-- Wildflowers near Fort Haven -->
+  ${Array.from({length:22}, (_,i) => {
+    const fx = 855 + (i % 11) * 22, fy = 460 + Math.floor(i/11) * 14;
+    const cols = ['#f5c542','#e05090','#ffffff','#c0d820'];
+    const c = cols[i % 4];
+    return `<circle cx="${fx}" cy="${fy}" r="2" fill="${c}" opacity="0.7"/>`;
+  }).join('')}
 `; }
 
 // =====================================================
@@ -425,12 +453,31 @@ function mountainsCopperRidge() { return `
     points="538,162 524,190 542,208 560,190 556,168"/>
   <polygon fill="#9698a8" opacity="0.4"
     points="512,215 498,240 520,255 535,238 525,218"/>
+  <!-- Rock strata lines -->
+  <line x1="430" y1="320" x2="490" y2="295" stroke="#5a5868" stroke-width="1.2" opacity="0.5"/>
+  <line x1="428" y1="338" x2="495" y2="310" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <line x1="480" y1="270" x2="540" y2="240" stroke="#5a5868" stroke-width="1" opacity="0.4"/>
+  <line x1="570" y1="210" x2="620" y2="238" stroke="#5a5868" stroke-width="1" opacity="0.4"/>
+  <line x1="605" y1="255" x2="655" y2="295" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <line x1="620" y1="290" x2="668" y2="330" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
   <!-- Snow caps -->
   <polygon fill="white" points="558,148 540,185 576,185"/>
   <polygon fill="white" points="512,194 498,225 530,222"/>
   <!-- Snow shading -->
   <polygon fill="#d8e8f4" opacity="0.7" points="558,158 548,180 568,178"/>
   <polygon fill="#d8e8f4" opacity="0.6" points="512,204 504,222 522,220"/>
+  <!-- Snow wisps (wind-blown) -->
+  <path d="M 558 148 C 565 143 572 140 582 142" stroke="white" stroke-width="2" fill="none" opacity="0.7" stroke-linecap="round"/>
+  <!-- Scree at mountain base -->
+  <polygon fill="#8a7060" opacity="0.4" points="390,378 418,355 445,360 472,348 495,355 510,340 525,348 545,338 560,345 580,335 600,345 625,338 650,350 670,365 692,378"/>
+  <!-- Small conifers on lower slopes -->
+  ${[
+    [430,348,0.55],[445,338,0.5],[460,330,0.6],[510,318,0.5],[530,308,0.55],
+    [600,315,0.5],[618,308,0.55],[635,318,0.5],[655,330,0.55],[672,345,0.5]
+  ].map(([x,y,sc]) => {
+    const h=18*sc, w=10*sc;
+    return `<polygon points="${x},${y-h} ${x-w},${y} ${x+w},${y}" fill="#1e4a1e" opacity="0.75"/>`;
+  }).join('')}
 `; }
 
 // =====================================================
@@ -456,29 +503,64 @@ function mountainsThunderPass() { return `
   <!-- Snow cap -->
   <polygon fill="white" points="1258,162 1240,198 1275,198"/>
   <polygon fill="#d8e8f4" opacity="0.7" points="1258,172 1248,195 1266,192"/>
-
-  <!-- TUNNEL INTERIOR (dark fill covers track between portals) -->
-  <!-- This sits under the portals and mountain to simulate darkness -->
-  <rect x="1218" y="268" width="60" height="22" fill="#0d0808" rx="2"/>
+  <!-- Snow wisp -->
+  <path d="M 1258 162 C 1265 157 1273 154 1283 156" stroke="white" stroke-width="2" fill="none" opacity="0.7" stroke-linecap="round"/>
+  <!-- Rock strata -->
+  <line x1="1170" y1="335" x2="1215" y2="308" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <line x1="1172" y1="350" x2="1220" y2="325" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <line x1="1210" y1="260" x2="1248" y2="240" stroke="#5a5868" stroke-width="1" opacity="0.4"/>
+  <line x1="1280" y1="240" x2="1320" y2="278" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <line x1="1295" y1="285" x2="1338" y2="328" stroke="#5a5868" stroke-width="1.2" opacity="0.45"/>
+  <!-- Scree at base -->
+  <polygon fill="#8a7060" opacity="0.38"
+    points="1155,378 1180,360 1205,355 1228,345 1250,352 1270,342 1295,350 1318,362 1342,372 1365,378"/>
+  <!-- Small conifers on slopes -->
+  <polygon points="1165,358 1157,375 1173,375" fill="#1e4a1e" opacity="0.75"/>
+  <polygon points="1178,348 1169,367 1187,367" fill="#1e4a1e" opacity="0.75"/>
+  <polygon points="1330,355 1322,372 1338,372" fill="#1e4a1e" opacity="0.75"/>
+  <polygon points="1345,365 1337,380 1353,380" fill="#1e4a1e" opacity="0.75"/>
 `; }
 
 // =====================================================
 // RIVER  (Sallows Crossing, x ≈ 700–790)
+// River flows north-to-south through the valley; track
+// crosses it at the bridge. Starts at valley floor (~y=358)
+// so it never appears above the ground surface.
 // =====================================================
 function river() { return `
+  <!-- Sandy banks (wider, behind water) -->
+  <path
+    d="M 694 356 C 704 372 714 388 724 408 C 734 432 746 468 754 518
+       C 760 558 765 615 769 672 C 771 700 772 714 772 720"
+    stroke="#c8a870" stroke-width="46" fill="none" stroke-linecap="round" opacity="0.55"/>
   <!-- River body -->
   <path class="rs"
-    d="M 698 155 C 708 225 716 278 722 338 C 726 362 736 378 742 404
-       C 750 438 758 495 764 570 C 768 638 770 690 772 720"
-    stroke="url(#gRiver)" stroke-width="32" fill="none" stroke-linecap="round"/>
+    d="M 696 358 C 706 374 716 390 726 410 C 736 434 748 470 756 520
+       C 762 560 766 618 770 674 C 771 702 772 714 772 720"
+    stroke="url(#gRiver)" stroke-width="30" fill="none" stroke-linecap="round"/>
   <!-- Highlight stripe -->
   <path
-    d="M 705 165 C 713 232 720 282 724 342 C 728 364 738 380 743 406"
-    stroke="rgba(180,225,255,0.55)" stroke-width="10" fill="none" stroke-linecap="round"/>
-  <!-- Shoreline shadows -->
+    d="M 700 362 C 710 376 718 390 728 412"
+    stroke="rgba(200,235,255,0.6)" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <!-- Shoreline shadow (far bank) -->
   <path
-    d="M 686 160 C 695 220 706 272 710 332 C 714 358 724 378 730 402"
-    stroke="rgba(20,50,100,0.28)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    d="M 690 360 C 700 376 708 390 716 410"
+    stroke="rgba(20,50,100,0.32)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <!-- River rocks -->
+  <ellipse cx="710" cy="390" rx="5" ry="3.5" fill="#8aacac" opacity="0.75"/>
+  <ellipse cx="738" cy="420" rx="6" ry="4"   fill="#7a9c9c" opacity="0.7"/>
+  <ellipse cx="720" cy="434" rx="3.5" ry="2.5" fill="#8aacac" opacity="0.65"/>
+  <ellipse cx="752" cy="455" rx="5" ry="3"   fill="#7a9c9c" opacity="0.7"/>
+  <!-- Water ripples -->
+  <ellipse cx="714" cy="400" rx="8" ry="3.5"  fill="none" stroke="rgba(200,235,255,0.5)" stroke-width="1.3"/>
+  <ellipse cx="730" cy="425" rx="10" ry="4.5" fill="none" stroke="rgba(200,235,255,0.45)" stroke-width="1.3"/>
+  <ellipse cx="744" cy="465" rx="7"  ry="3"   fill="none" stroke="rgba(200,235,255,0.4)" stroke-width="1.2"/>
+  <!-- Reeds / cattails (near bank) -->
+  <line x1="686" y1="412" x2="686" y2="396" stroke="#4a6e30" stroke-width="1.5"/>
+  <ellipse cx="686" cy="394" rx="2" ry="4" fill="#6a5020"/>
+  <line x1="682" y1="418" x2="682" y2="404" stroke="#4a6e30" stroke-width="1.5"/>
+  <ellipse cx="682" cy="402" rx="1.8" ry="3.5" fill="#6a5020"/>
+  <line x1="690" y1="408" x2="690" y2="395" stroke="#4a6e30" stroke-width="1.5"/>
 `; }
 
 // =====================================================
@@ -499,15 +581,32 @@ function forest() {
         [1002,309,1.2,'#1e501e'],[1028,306,1.0,'#205020'],[1054,314,1.0,'#1e501e'],
     ];
 
-    return treeData.map(([x,y,sc,fill]) => {
+    // Ground cover shadow under trees
+    const groundCover = `
+  <ellipse cx="950" cy="368" rx="95" ry="12" fill="#1a4a1a" opacity="0.25"/>
+  <ellipse cx="952" cy="380" rx="80" ry="8"  fill="#1a4a1a" opacity="0.18"/>`;
+
+    // A few deciduous trees mixed in (rounded canopy)
+    const deciduous = [
+        [870,342,12],[910,335,10],[990,338,11],[1038,340,10]
+    ].map(([x,y,r]) => `
+  <rect x="${x-2}" y="${y}" width="4" height="14" fill="#6b4820"/>
+  <ellipse cx="${x}" cy="${y-r*0.8}" rx="${r}" ry="${r*0.85}" fill="#3a7a30"/>
+  <ellipse cx="${x-r*0.4}" cy="${y-r*0.5}" rx="${r*0.6}" ry="${r*0.55}" fill="#4a8a40" opacity="0.7"/>
+  <ellipse cx="${x+r*0.4}" cy="${y-r*0.6}" rx="${r*0.5}" ry="${r*0.5}" fill="#4a8a40" opacity="0.6"/>`).join('');
+
+    const conifers = treeData.map(([x,y,sc,fill]) => {
         const h = 32 * sc, w = 20 * sc;
         const fill2 = fill === '#256025' ? '#347a34' : '#2d6e2d';
         return `
   <!-- Tree at ${x},${y} -->
   <rect x="${x-2}" y="${y}" width="4" height="12" fill="#5c3a18"/>
   <polygon points="${x},${y-h} ${x-w/2},${y+4} ${x+w/2},${y+4}" fill="${fill}"/>
-  <polygon points="${x},${y-h*0.62} ${x-w*0.62},${y-h*0.1} ${x+w*0.62},${y-h*0.1}" fill="${fill2}"/>`;
+  <polygon points="${x},${y-h*0.62} ${x-w*0.62},${y-h*0.1} ${x+w*0.62},${y-h*0.1}" fill="${fill2}"/>
+  <polygon points="${x},${y-h*0.3} ${x-w*0.45},${y+2} ${x+w*0.45},${y+2}" fill="${fill2}" opacity="0.6"/>`;
     }).join('');
+
+    return groundCover + deciduous + conifers;
 }
 
 // =====================================================
@@ -522,25 +621,50 @@ function bridge() {
   <!-- Bridge horizontal beams -->
   <rect x="${x1}" y="${bY-6}" width="${x2-x1}" height="12" fill="#6b4820" rx="2"/>
   <rect x="${x1+4}" y="${bY-3}" width="${x2-x1-8}" height="5" fill="#8b6914" opacity="0.5"/>
+  <!-- Rivets along top beam -->
+  ${Array.from({length:14}, (_,i) => `<circle cx="${x1+8+i*6}" cy="${bY-1}" r="1.5" fill="#3a2010" opacity="0.7"/>`).join('')}
   <!-- Top railing -->
   <line x1="${x1}" y1="${bY-14}" x2="${x2}" y2="${bY-14}" stroke="#8b6914" stroke-width="2.5"/>
   ${pilings.map(px => `<line x1="${px}" y1="${bY-14}" x2="${px}" y2="${bY-4}" stroke="#8b6914" stroke-width="2"/>`).join('')}
   <!-- Trestle X-braces -->
   ${braces.map(px => `
   <line x1="${px-9}" y1="${bY+6}" x2="${px+9}" y2="${bY+55}" stroke="#5c3a18" stroke-width="3"/>
-  <line x1="${px+9}" y1="${bY+6}" x2="${px-9}" y2="${bY+55}" stroke="#5c3a18" stroke-width="3"/>`).join('')}
+  <line x1="${px+9}" y1="${bY+6}" x2="${px-9}" y2="${bY+55}" stroke="#5c3a18" stroke-width="3"/>
+  <line x1="${px-4}" y1="${bY+6}" x2="${px+4}" y2="${bY+30}" stroke="#7a4a22" stroke-width="1.5" opacity="0.5"/>
+  <line x1="${px+4}" y1="${bY+6}" x2="${px-4}" y2="${bY+30}" stroke="#7a4a22" stroke-width="1.5" opacity="0.5"/>`).join('')}
   <!-- Vertical pilings -->
-  ${pilings.map(px => `<rect x="${px-3}" y="${bY+6}" width="6" height="56" fill="#4a2e12" rx="1"/>`).join('')}
+  ${pilings.map(px => `
+  <rect x="${px-3}" y="${bY+6}" width="6" height="56" fill="#4a2e12" rx="1"/>
+  <line x1="${px}" y1="${bY+14}" x2="${px}" y2="${bY+58}" stroke="#7a5020" stroke-width="0.8" opacity="0.4"/>
+  `).join('')}
   <!-- Horizontal cross-beams -->
   <line x1="${x1+6}" y1="${bY+30}" x2="${x2-6}" y2="${bY+30}" stroke="#5c3a18" stroke-width="2.5"/>
   <line x1="${x1+6}" y1="${bY+53}" x2="${x2-6}" y2="${bY+53}" stroke="#5c3a18" stroke-width="2.5"/>
+  <!-- Rivets on cross-beams -->
+  ${Array.from({length:9}, (_,i) => `<circle cx="${x1+10+i*9}" cy="${bY+30}" r="1.3" fill="#3a2010" opacity="0.65"/>`).join('')}
 `;
 }
 
 // =====================================================
-// TRACK  (rails + ballast + ties)
+// TRACK  (rails + ballast + ties + telegraph poles)
 // =====================================================
-function track() { return `
+function track() {
+    // Telegraph poles placed every ~130px along track at rough x,y positions
+    const poles = [
+        [160,402],[290,382],[430,338],[560,270],[630,298],
+        [760,388],[830,362],[950,328],[1050,340],[1160,342],[1260,290],[1360,398]
+    ];
+    const poleSVG = poles.map(([px,py]) => `
+  <line x1="${px}" y1="${py-22}" x2="${px}" y2="${py+14}" stroke="#5c3d1a" stroke-width="2.5"/>
+  <line x1="${px-10}" y1="${py-18}" x2="${px+10}" y2="${py-18}" stroke="#5c3d1a" stroke-width="2"/>
+  <circle cx="${px-10}" cy="${py-18}" r="1.8" fill="#8b6914"/>
+  <circle cx="${px+10}" cy="${py-18}" r="1.8" fill="#8b6914"/>
+  <line x1="${px-8}" y1="${py-10}" x2="${px+8}" y2="${py-10}" stroke="#5c3d1a" stroke-width="1.5"/>
+  <circle cx="${px-8}" cy="${py-10}" r="1.5" fill="#8b6914"/>
+  <circle cx="${px+8}" cy="${py-10}" r="1.5" fill="#8b6914"/>`).join('');
+
+    return `
+  ${poleSVG}
   <!-- Ballast (wide, warm brown) -->
   <path d="${TRACK_PATH}" stroke="#7a5a20" stroke-width="20"
         fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -563,34 +687,6 @@ function track() { return `
         fill="none" stroke-linecap="round" transform="translate(4.5,-1.5)"/>
 `; }
 
-// =====================================================
-// TUNNEL PORTALS  (at Thunder Pass entry & exit)
-// =====================================================
-function tunnelPortals() {
-    // Entry: track at ≈ (1228, 283)  Exit: ≈ (1272, 281)
-    function portal(cx, cy, label) {
-        return `
-  <!-- Tunnel portal ${label} -->
-  <g transform="translate(${cx},${cy})">
-    <!-- Stone surround -->
-    <path d="M -30 62 L -30 8 A 30 34 0 0 1 30 8 L 30 62"
-          fill="#4a4244" stroke="#2e2830" stroke-width="2"/>
-    <!-- Keystone -->
-    <polygon points="0,-28 -8,-8 8,-8" fill="#3a3240"/>
-    <!-- Stone courses (horizontal lines) -->
-    <line x1="-30" y1="20" x2="-24" y2="20" stroke="#2e2830" stroke-width="1.5"/>
-    <line x1="24"  y1="20" x2="30"  y2="20" stroke="#2e2830" stroke-width="1.5"/>
-    <line x1="-30" y1="38" x2="-24" y2="38" stroke="#2e2830" stroke-width="1.5"/>
-    <line x1="24"  y1="38" x2="30"  y2="38" stroke="#2e2830" stroke-width="1.5"/>
-    <!-- Dark interior -->
-    <path d="M -22 62 L -22 14 A 22 26 0 0 1 22 14 L 22 62" fill="#100808"/>
-    <!-- Slight ambient light inside (just at opening) -->
-    <path d="M -16 62 L -16 18 A 16 20 0 0 1 16 18 L 16 62"
-          fill="rgba(60,20,10,0.7)"/>
-  </g>`;
-    }
-    return portal(1228, 220) + portal(1272, 218);
-}
 
 // =====================================================
 // CLOUDS  (animated, drift across sky)
@@ -606,7 +702,18 @@ function cloud(cx, cy, scale, cls) {
   </g>`;
 }
 
+function cloudBase(cx, cy, scale) {
+    const s = scale;
+    return `
+  <ellipse cx="${cx}" cy="${cy + 28*s}" rx="${55*s}" ry="${10*s}" fill="#2a4a6a" opacity="0.08"/>`;
+}
+
 function clouds() { return `
+  <!-- Cloud ground shadows -->
+  ${cloudBase(300, 300, 1.0)}
+  ${cloudBase(700, 290, 0.8)}
+  ${cloudBase(1050, 305, 1.1)}
+  <!-- Clouds -->
   ${cloud(-200, 80,  1.0, 'cl1')}
   ${cloud(400,  55,  0.8, 'cl2')}
   ${cloud(850,  70,  1.1, 'cl3')}
@@ -690,6 +797,7 @@ function locomotiveSVG(c, name, score, yOff, idx) {
     const { fill, dark, gold } = c;
     return `
   <g transform="translate(0,${yOff})" filter="url(#fShadow)">
+    <g transform="scale(0.8,0.8)">
     ${smokeSVG(idx)}
     <!-- Tender car -->
     <rect x="34" y="-8" width="24" height="14" rx="2" fill="${fill}"/>
@@ -732,6 +840,7 @@ function locomotiveSVG(c, name, score, yOff, idx) {
     <rect x="2" y="28" width="54" height="16" rx="3" fill="${fill}" fill-opacity="0.92"/>
     <text x="29" y="39" text-anchor="middle" font-family="Oswald,sans-serif"
           font-size="11" fill="white">${score.toLocaleString()} pts</text>
+    </g>
   </g>`;
 }
 
