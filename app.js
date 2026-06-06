@@ -611,7 +611,11 @@ async function newSeason() {
     state.config = updated;
     sessionStorage.removeItem("ttr_celebrated");
     closeSettings();
-    // The real-time listener will immediately re-filter and re-render
+    // Manually re-filter and re-render — the Firestore listener won't fire
+    // on its own because no game documents changed, only the config did
+    const currentSeason = updated.season;
+    state.games = state.games.filter(g => (g.season ?? 0) === currentSeason);
+    renderGroups();
 }
 
 // =====================================================
