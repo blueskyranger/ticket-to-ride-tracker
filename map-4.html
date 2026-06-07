@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Season Map — 4 Players</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ---- Theme: Sage Green ---- */
+    :root {
+      --accent:    #2d5a18;
+      --border:    #8aac6a;
+      --card-bg:   #eef5e8;
+      --page-bg:   #e8f2e0;
+      --sub:       #5a7840;
+      --strip-bg:  #dde8d0;
+      --map-inner: #e2edd8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: sans-serif;
+      background: var(--page-bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.25rem 1rem 3rem;
+    }
+
+    .page-header {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      width: 100%;
+      max-width: 720px;
+      margin-bottom: 1rem;
+      gap: 0.5rem;
+    }
+
+    .back-link {
+      font-size: 13px;
+      color: var(--sub);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .back-link:hover { color: var(--accent); }
+
+    .page-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      letter-spacing: 2px;
+      color: #1e3a18;
+      text-align: center;
+    }
+
+    .page-badge {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--sub);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .setup-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 0.75rem 1rem 0.85rem;
+      background: var(--card-bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .setup-label {
+      width: 100%;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--sub);
+      margin-bottom: 0.3rem;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.35);
+    }
+
+    .player-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 14px;
+      font-weight: 700;
+      min-width: 64px;
+      transition: color 0.2s;
+    }
+
+    .swatches { display: flex; gap: 5px; }
+
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2.5px solid transparent;
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+    .swatch:hover:not(:disabled) { transform: scale(1.2); }
+    .swatch.selected {
+      border-color: #fff;
+      box-shadow: 0 0 0 2px #333;
+      transform: scale(1.15);
+    }
+    .swatch.taken {
+      opacity: 0.2;
+      cursor: not-allowed;
+    }
+
+    .map-shell {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .map-hdr { text-align: center; margin-bottom: 0.75rem; }
+
+    .map-hdr-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+
+    .map-hdr-sub {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--sub);
+      margin-top: 3px;
+    }
+
+    .map-rule {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 5px auto;
+      width: 220px;
+    }
+
+    .map-canvas {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--map-inner);
+    }
+
+    .score-strip {
+      display: flex;
+      margin-top: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--strip-bg);
+      overflow: hidden;
+    }
+
+    .score-cell {
+      flex: 1;
+      padding: 8px 6px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .score-cell:last-child { border-right: none; }
+
+    .sc-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 12px;
+      display: block;
+    }
+    .sc-pts {
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 1.1;
+      display: block;
+    }
+    .sc-goal {
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      color: var(--sub);
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <a href="map.html" class="back-link">← Map Menu</a>
+    <h1 class="page-title">Cape Town &rarr; Cairo</h1>
+    <span class="page-badge">4 Players</span>
+  </div>
+
+  <div class="setup-bar" id="setup-bar">
+    <p class="setup-label">Choose your colour</p>
+  </div>
+
+  <div class="map-shell">
+    <div class="map-hdr">
+      <hr class="map-rule" />
+      <p class="map-hdr-title">The Jungle &amp; Sahara Routes</p>
+      <p class="map-hdr-sub">4 Players &mdash; Sage Edition</p>
+      <hr class="map-rule" />
+    </div>
+    <div class="map-canvas">
+      <svg id="map-svg" width="100%" viewBox="0 0 640 560" style="display:block;"></svg>
+    </div>
+    <div class="score-strip" id="score-strip"></div>
+  </div>
+
+  <script src="map-shared.js"></script>
+  <script>
+    // =====================================================
+    // 4-PLAYER MAP CONFIG
+    // =====================================================
+
+    const GOAL = 1000;
+
+    const THEME = {
+      mapBg:       '#e2edd8',
+      trackColour: '#8aac6a',
+      cityStroke:  '#8aac6a',
+      termColour:  '#2d5a18',
+    };
+
+    // *** Replace with real Firestore data when ready ***
+    const GAME_DATA = {
+      players: [
+        { name: 'Kevin',   pts: 634 },
+        { name: 'Paulina', pts: 521 },
+        { name: 'James',   pts: 488 },
+        { name: 'Ursula',  pts: 312 },
+      ]
+    };
+
+    let assignments = [0, 1, 2, 3]; // Red, Blue, Green, Black
+
+    const currentRoutes = pickRoutes(4);
+
+    function isColourTaken(colourIdx, exceptPlayer) {
+      return assignments.some((c, i) => c === colourIdx && i !== exceptPlayer);
+    }
+
+    function selectColour(playerIdx, colourIdx) {
+      if (isColourTaken(colourIdx, playerIdx)) return;
+      assignments[playerIdx] = colourIdx;
+      updateSwatches();
+      renderMap();
+    }
+
+    function updateSwatches() {
+      document.querySelectorAll('.player-row').forEach((row, pi) => {
+        row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
+        row.querySelectorAll('.swatch').forEach((btn, ci) => {
+          const isSel   = assignments[pi] === ci;
+          const isTaken = isColourTaken(ci, pi);
+          btn.classList.toggle('selected', isSel);
+          btn.classList.toggle('taken',    isTaken && !isSel);
+          btn.disabled = isTaken && !isSel;
+        });
+      });
+    }
+
+    function renderMap() {
+      const players = GAME_DATA.players.map((p, pi) => ({
+        name:   p.name,
+        pts:    p.pts,
+        colour: COLOUR_OPTIONS[assignments[pi]].hex,
+      }));
+      drawMap(
+        'map-svg', 'score-strip',
+        players, currentRoutes, GOAL,
+        THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
+        OFFSETS_4
+      );
+    }
+
+    function buildPicker() {
+      const bar = document.getElementById('setup-bar');
+      GAME_DATA.players.forEach((p, pi) => {
+        const row = document.createElement('div');
+        row.className = 'player-row';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = p.name;
+        row.appendChild(nameSpan);
+
+        const swatchDiv = document.createElement('div');
+        swatchDiv.className = 'swatches';
+        COLOUR_OPTIONS.forEach((col, ci) => {
+          const btn = document.createElement('button');
+          btn.className = 'swatch';
+          btn.style.background = col.hex;
+          btn.title = col.label;
+          btn.onclick = () => selectColour(pi, ci);
+          swatchDiv.appendChild(btn);
+        });
+
+        row.appendChild(swatchDiv);
+        bar.appendChild(row);
+      });
+    }
+
+    buildPicker();
+    updateSwatches();
+    renderMap();
+  </script>
+</body>
+</html>
