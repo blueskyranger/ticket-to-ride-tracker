@@ -105,25 +105,22 @@
 
   <a href="index.html" class="back-link">← Back to Scoreboard</a>
 
-  <script type="module">
-    import { fetchMapData } from './map-firebase.js';
-
-    try {
-      const data = await fetchMapData();
-      const n    = data?.players?.length ?? 0;
-      if (n >= 3 && n <= 5) {
-        // Player count known — jump straight to the right map page
-        window.location.replace('map-' + n + '.html');
-      } else {
-        // Zero players, config not yet set up, or unusual count — show manual buttons
-        document.getElementById('loading-msg').style.display  = 'none';
-        document.getElementById('manual-picker').style.display = '';
+  <script>
+    (async function () {
+      try {
+        const { fetchMapData } = await import('./map-firebase.js');
+        const data = await fetchMapData();
+        const n    = data?.players?.length ?? 0;
+        if (n >= 3 && n <= 5) {
+          window.location.replace('map-' + n + '.html');
+          return;
+        }
+      } catch (e) {
+        // Offline or Firebase error — fall through to manual selection
       }
-    } catch (e) {
-      // Offline or Firebase error — fall back to manual selection
-      document.getElementById('loading-msg').style.display  = 'none';
+      document.getElementById('loading-msg').style.display   = 'none';
       document.getElementById('manual-picker').style.display = '';
-    }
+    })();
   </script>
 
 </body>

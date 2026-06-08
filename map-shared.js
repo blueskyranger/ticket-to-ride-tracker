@@ -251,17 +251,6 @@ function drawConnections(svg, strokeColour) {
 }
 
 // =====================================================
-// WINDOW EXPORTS
-// `const` declarations in regular scripts are NOT automatically on window,
-// so ES module scripts (map-3/4/5.html) can't access them by name alone.
-// Exposing them explicitly bridges that gap.
-// =====================================================
-window.COLOUR_OPTIONS = COLOUR_OPTIONS;
-window.OFFSETS_3      = OFFSETS_3;
-window.OFFSETS_4      = OFFSETS_4;
-window.OFFSETS_5      = OFFSETS_5;
-
-// =====================================================
 // MAIN MAP RENDER FUNCTION
 //
 // svgId       — id of the <svg> element to draw into

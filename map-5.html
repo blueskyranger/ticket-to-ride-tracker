@@ -228,107 +228,105 @@
   </div>
 
   <script src="map-shared.js"></script>
-  <script type="module">
-    import { fetchMapData } from './map-firebase.js';
-
+  <script>
     // =====================================================
     // 5-PLAYER MAP CONFIG
     // =====================================================
+    (async function () {
+      const { fetchMapData } = await import('./map-firebase.js');
 
-    const THEME = {
-      mapBg:       '#dce8f4',
-      trackColour: '#7aa0c8',
-      cityStroke:  '#7aa0c8',
-      termColour:  '#1a4a78',
-    };
+      const THEME = {
+        mapBg:       '#dce8f4',
+        trackColour: '#7aa0c8',
+        cityStroke:  '#7aa0c8',
+        termColour:  '#1a4a78',
+      };
 
-    const COLOUR_OPTIONS = window.COLOUR_OPTIONS;
-    const OFFSETS        = window.OFFSETS_5;
+      const raw      = await fetchMapData().catch(() => null);
+      const GOAL     = raw?.goal ?? 1000;
+      const GAME_DATA = {
+        players: raw?.players.slice(0, 5) ?? [
+          { name: 'Player 1', pts: 0 },
+          { name: 'Player 2', pts: 0 },
+          { name: 'Player 3', pts: 0 },
+          { name: 'Player 4', pts: 0 },
+          { name: 'Player 5', pts: 0 },
+        ],
+      };
 
-    const raw      = await fetchMapData().catch(() => null);
-    const GOAL     = raw?.goal ?? 1000;
-    const GAME_DATA = {
-      players: raw?.players.slice(0, 5) ?? [
-        { name: 'Player 1', pts: 0 },
-        { name: 'Player 2', pts: 0 },
-        { name: 'Player 3', pts: 0 },
-        { name: 'Player 4', pts: 0 },
-        { name: 'Player 5', pts: 0 },
-      ],
-    };
+      // Default colour order: Red, Blue, Green, Black, Yellow
+      let assignments     = GAME_DATA.players.map((_, i) => i);
+      const currentRoutes = pickRoutes(5);
 
-    // Default colour order: Red, Blue, Green, Black, Yellow
-    let assignments     = GAME_DATA.players.map((_, i) => i);
-    const currentRoutes = pickRoutes(5);
+      function isColourTaken(colourIdx, exceptPlayer) {
+        return assignments.some((c, i) => c === colourIdx && i !== exceptPlayer);
+      }
 
-    function isColourTaken(colourIdx, exceptPlayer) {
-      return assignments.some((c, i) => c === colourIdx && i !== exceptPlayer);
-    }
+      function selectColour(playerIdx, colourIdx) {
+        if (isColourTaken(colourIdx, playerIdx)) return;
+        assignments[playerIdx] = colourIdx;
+        updateSwatches();
+        renderMap();
+      }
 
-    function selectColour(playerIdx, colourIdx) {
-      if (isColourTaken(colourIdx, playerIdx)) return;
-      assignments[playerIdx] = colourIdx;
+      function updateSwatches() {
+        document.querySelectorAll('.player-row').forEach((row, pi) => {
+          row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
+          row.querySelectorAll('.swatch').forEach((btn, ci) => {
+            const isSel   = assignments[pi] === ci;
+            const isTaken = isColourTaken(ci, pi);
+            btn.classList.toggle('selected', isSel);
+            btn.classList.toggle('taken',    isTaken && !isSel);
+            btn.disabled = isTaken && !isSel;
+          });
+        });
+      }
+
+      function renderMap() {
+        const players = GAME_DATA.players.map((p, pi) => ({
+          name:   p.name,
+          pts:    p.pts,
+          colour: COLOUR_OPTIONS[assignments[pi]].hex,
+        }));
+        drawMap(
+          'map-svg', 'score-strip',
+          players, currentRoutes, GOAL,
+          THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
+          OFFSETS_5
+        );
+      }
+
+      function buildPicker() {
+        const bar = document.getElementById('setup-bar');
+        GAME_DATA.players.forEach((p, pi) => {
+          const row = document.createElement('div');
+          row.className = 'player-row';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'player-name';
+          nameSpan.textContent = p.name;
+          row.appendChild(nameSpan);
+
+          const swatchDiv = document.createElement('div');
+          swatchDiv.className = 'swatches';
+          COLOUR_OPTIONS.forEach((col, ci) => {
+            const btn = document.createElement('button');
+            btn.className = 'swatch';
+            btn.style.background = col.hex;
+            btn.title = col.label;
+            btn.onclick = () => selectColour(pi, ci);
+            swatchDiv.appendChild(btn);
+          });
+
+          row.appendChild(swatchDiv);
+          bar.appendChild(row);
+        });
+      }
+
+      buildPicker();
       updateSwatches();
       renderMap();
-    }
-
-    function updateSwatches() {
-      document.querySelectorAll('.player-row').forEach((row, pi) => {
-        row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
-        row.querySelectorAll('.swatch').forEach((btn, ci) => {
-          const isSel   = assignments[pi] === ci;
-          const isTaken = isColourTaken(ci, pi);
-          btn.classList.toggle('selected', isSel);
-          btn.classList.toggle('taken',    isTaken && !isSel);
-          btn.disabled = isTaken && !isSel;
-        });
-      });
-    }
-
-    function renderMap() {
-      const players = GAME_DATA.players.map((p, pi) => ({
-        name:   p.name,
-        pts:    p.pts,
-        colour: COLOUR_OPTIONS[assignments[pi]].hex,
-      }));
-      drawMap(
-        'map-svg', 'score-strip',
-        players, currentRoutes, GOAL,
-        THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
-        OFFSETS
-      );
-    }
-
-    function buildPicker() {
-      const bar = document.getElementById('setup-bar');
-      GAME_DATA.players.forEach((p, pi) => {
-        const row = document.createElement('div');
-        row.className = 'player-row';
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'player-name';
-        nameSpan.textContent = p.name;
-        row.appendChild(nameSpan);
-
-        const swatchDiv = document.createElement('div');
-        swatchDiv.className = 'swatches';
-        COLOUR_OPTIONS.forEach((col, ci) => {
-          const btn = document.createElement('button');
-          btn.className = 'swatch';
-          btn.style.background = col.hex;
-          btn.title = col.label;
-          btn.onclick = () => selectColour(pi, ci);
-          swatchDiv.appendChild(btn);
-        });
-
-        row.appendChild(swatchDiv);
-        bar.appendChild(row);
-      });
-    }
-
-    buildPicker();
-    updateSwatches();
-    renderMap();
+    })();
   </script>
 </body>
 </html>
