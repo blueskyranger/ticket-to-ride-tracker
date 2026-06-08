@@ -545,6 +545,30 @@ input[type=number] { -moz-appearance: textfield; }
     font-family: 'Lato', sans-serif;
 }
 
+/* Flex wrapper so count and reset button sit side by side */
+.group-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Subtle trash button in the dark group header */
+.btn-group-reset {
+    background: none;
+    border: none;
+    color: rgba(255,248,231,0.4);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0.2rem 0.3rem;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+}
+.btn-group-reset:hover {
+    color: #ff7b7b;
+    background: rgba(255,255,255,0.1);
+}
+
 /* =====================================================
    LEADERBOARD ROWS
    ===================================================== */

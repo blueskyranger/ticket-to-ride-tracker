@@ -328,11 +328,21 @@ function renderGroupSection(groupKey, games) {
     const rows = sorted.map((entry, i) => renderRow(entry, i, goal)).join("");
     const hist = renderHistory(games);
 
+    // JSON.stringify safely escapes the groupKey so player names with
+    // special characters don't break the onclick attribute
+    const escapedKey = JSON.stringify(groupKey);
+
     return `
         <div class="group-section">
           <div class="group-header">
             <span class="group-title">🚂 ${players.join("  ·  ")}</span>
-            <span class="group-count">${count} game${count !== 1 ? "s" : ""}</span>
+            <div class="group-header-right">
+              <span class="group-count">${count} game${count !== 1 ? "s" : ""}</span>
+              <button class="btn-group-reset"
+                      onclick='resetGroup(${escapedKey})'
+                      title="Reset group scores"
+                      aria-label="Reset scores for ${players.join(" and ")}">🗑</button>
+            </div>
           </div>
           <div class="leaderboard">${rows}</div>
           <button class="history-toggle" onclick="toggleHistory(this)">
@@ -591,6 +601,26 @@ async function resetAllData() {
 }
 
 // =====================================================
+// RESET ONE GROUP
+// Deletes all games for a single player group in the current season.
+// The Firestore listener re-renders automatically once docs are removed.
+// =====================================================
+async function resetGroup(groupKey) {
+    const groupGames = state.games.filter(g => g.groupKey === groupKey);
+    const players    = groupKey.split(",").join(" · ");
+    const count      = groupGames.length;
+
+    const confirmed = confirm(
+        `Reset scores for ${players}?\n\n` +
+        `This will delete ${count} game${count !== 1 ? "s" : ""} for this group.\n\n` +
+        "This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    await Promise.all(groupGames.map(g => deleteDoc(doc(db, COL_GAMES, g.id))));
+}
+
+// =====================================================
 // NEW SEASON
 // Records a seasonStart date in config.
 // Games before that date are hidden from the scoreboard.
@@ -656,6 +686,7 @@ window.removeSettingsPlayer = removeSettingsPlayer;
 window.saveSettings         = saveSettings;
 window.newSeason            = newSeason;
 window.resetAllData         = resetAllData;
+window.resetGroup           = resetGroup;
 
 // =====================================================
 // BOOT
