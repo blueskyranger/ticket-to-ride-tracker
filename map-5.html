@@ -233,88 +233,76 @@
     // 5-PLAYER MAP CONFIG
     // =====================================================
     (async function () {
-      const { fetchMapData } = await import('./map-firebase.js');
+      var mod      = await import('./map-firebase.js');
+      var groupKey = new URLSearchParams(window.location.search).get('group');
+      var raw      = await mod.fetchMapData(groupKey).catch(function() { return null; });
 
-      const THEME = {
+      var THEME = {
         mapBg:       '#dce8f4',
         trackColour: '#7aa0c8',
         cityStroke:  '#7aa0c8',
         termColour:  '#1a4a78',
       };
 
-      const raw      = await fetchMapData().catch(() => null);
-      const GOAL     = raw?.goal ?? 1000;
-      const GAME_DATA = {
-        players: raw?.players.slice(0, 5) ?? [
-          { name: 'Player 1', pts: 0 },
-          { name: 'Player 2', pts: 0 },
-          { name: 'Player 3', pts: 0 },
-          { name: 'Player 4', pts: 0 },
-          { name: 'Player 5', pts: 0 },
-        ],
-      };
+      var GOAL    = raw ? raw.goal : 1000;
+      var players = (raw && raw.players.length >= 5) ? raw.players.slice(0, 5) : [
+        { name: 'Player 1', pts: 0 },
+        { name: 'Player 2', pts: 0 },
+        { name: 'Player 3', pts: 0 },
+        { name: 'Player 4', pts: 0 },
+        { name: 'Player 5', pts: 0 },
+      ];
 
       // Default colour order: Red, Blue, Green, Black, Yellow
-      let assignments     = GAME_DATA.players.map((_, i) => i);
-      const currentRoutes = pickRoutes(5);
+      var assignments   = players.map(function(_, i) { return i; });
+      var currentRoutes = pickRoutes(5);
 
-      function isColourTaken(colourIdx, exceptPlayer) {
-        return assignments.some((c, i) => c === colourIdx && i !== exceptPlayer);
-      }
-
-      function selectColour(playerIdx, colourIdx) {
-        if (isColourTaken(colourIdx, playerIdx)) return;
-        assignments[playerIdx] = colourIdx;
+      function selectColour(pi, ci) {
+        var prev = assignments.indexOf(ci);
+        if (prev !== -1 && prev !== pi) assignments[prev] = assignments[pi];
+        assignments[pi] = ci;
         updateSwatches();
         renderMap();
       }
 
       function updateSwatches() {
-        document.querySelectorAll('.player-row').forEach((row, pi) => {
+        document.querySelectorAll('.player-row').forEach(function(row, pi) {
           row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
-          row.querySelectorAll('.swatch').forEach((btn, ci) => {
-            const isSel   = assignments[pi] === ci;
-            const isTaken = isColourTaken(ci, pi);
-            btn.classList.toggle('selected', isSel);
-            btn.classList.toggle('taken',    isTaken && !isSel);
-            btn.disabled = isTaken && !isSel;
+          row.querySelectorAll('.swatch').forEach(function(btn, ci) {
+            btn.classList.toggle('selected', assignments[pi] === ci);
+            btn.classList.remove('taken');
+            btn.disabled = false;
           });
         });
       }
 
       function renderMap() {
-        const players = GAME_DATA.players.map((p, pi) => ({
-          name:   p.name,
-          pts:    p.pts,
-          colour: COLOUR_OPTIONS[assignments[pi]].hex,
-        }));
-        drawMap(
-          'map-svg', 'score-strip',
-          players, currentRoutes, GOAL,
-          THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
-          OFFSETS_5
-        );
+        var mapped = players.map(function(p, pi) {
+          return { name: p.name, pts: p.pts, colour: COLOUR_OPTIONS[assignments[pi]].hex };
+        });
+        drawMap('map-svg', 'score-strip', mapped, currentRoutes, GOAL,
+          THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour, OFFSETS_5);
       }
 
       function buildPicker() {
-        const bar = document.getElementById('setup-bar');
-        GAME_DATA.players.forEach((p, pi) => {
-          const row = document.createElement('div');
+        var bar = document.getElementById('setup-bar');
+        players.forEach(function(p, pi) {
+          var row = document.createElement('div');
           row.className = 'player-row';
 
-          const nameSpan = document.createElement('span');
+          var nameSpan = document.createElement('span');
           nameSpan.className = 'player-name';
           nameSpan.textContent = p.name;
           row.appendChild(nameSpan);
 
-          const swatchDiv = document.createElement('div');
+          var swatchDiv = document.createElement('div');
           swatchDiv.className = 'swatches';
-          COLOUR_OPTIONS.forEach((col, ci) => {
-            const btn = document.createElement('button');
+          COLOUR_OPTIONS.forEach(function(col, ci) {
+            var btn = document.createElement('button');
             btn.className = 'swatch';
             btn.style.background = col.hex;
             btn.title = col.label;
-            btn.onclick = () => selectColour(pi, ci);
+            (function(pi, ci) { btn.onclick = function() { selectColour(pi, ci); }; })(pi, ci);
             swatchDiv.appendChild(btn);
           });
 

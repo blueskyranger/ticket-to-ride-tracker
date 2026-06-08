@@ -48,7 +48,16 @@
       letter-spacing: 1px;
     }
 
-    /* The three player-count buttons */
+    .group-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin-bottom: 3rem;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    /* Fallback player-count buttons (shown if no games exist yet) */
     .player-btns {
       display: flex;
       gap: 1rem;
@@ -69,11 +78,39 @@
       letter-spacing: 1px;
       border: 2px solid #9a6030;
       transition: background 0.18s, transform 0.1s;
+      text-align: center;
     }
-
     .player-btn:hover {
       background: #5a3010;
       transform: translateY(-2px);
+    }
+
+    .group-btn {
+      display: block;
+      padding: 0.9rem 1.5rem;
+      border-radius: 10px;
+      background: #7a5018;
+      color: #f5eedc;
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      text-decoration: none;
+      letter-spacing: 0.5px;
+      border: 2px solid #9a6030;
+      transition: background 0.18s, transform 0.1s;
+      text-align: center;
+    }
+    .group-btn:hover {
+      background: #5a3010;
+      transform: translateY(-2px);
+    }
+
+    .group-btn-sub {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #d4a87a;
+      margin-top: 3px;
     }
 
     .back-link {
@@ -90,10 +127,15 @@
   <h1>Cape Town &rarr; Cairo</h1>
   <p class="subtitle">Season Progress Map</p>
 
-  <!-- Shown while Firebase resolves the player count -->
   <p class="prompt" id="loading-msg">Loading season data…</p>
 
-  <!-- Shown as fallback if Firebase is unavailable or player count is unexpected -->
+  <!-- Group selection — shown when there are active groups in the current season -->
+  <div id="group-picker" style="display:none">
+    <p class="prompt">Choose your group</p>
+    <div class="group-btns" id="group-btns"></div>
+  </div>
+
+  <!-- Fallback — shown if no games have been recorded yet -->
   <div id="manual-picker" style="display:none">
     <p class="prompt">How many players?</p>
     <div class="player-btns">
@@ -107,19 +149,47 @@
 
   <script>
     (async function () {
+      var loadingEl = document.getElementById('loading-msg');
+      var groupEl   = document.getElementById('group-picker');
+      var manualEl  = document.getElementById('manual-picker');
+
+      function showManual() {
+        loadingEl.style.display = 'none';
+        manualEl.style.display  = '';
+      }
+
       try {
-        const { fetchMapData } = await import('./map-firebase.js');
-        const data = await fetchMapData();
-        const n    = data?.players?.length ?? 0;
-        if (n >= 3 && n <= 5) {
-          window.location.replace('map-' + n + '.html');
-          return;
+        var mod    = await import('./map-firebase.js');
+        var result = await mod.fetchGroups();
+        var groups = result.groups || [];
+
+        // Filter to only groups the map pages support (3–5 players)
+        groups = groups.filter(function(g) { return g.players.length >= 3 && g.players.length <= 5; });
+
+        if (groups.length === 0) {
+          showManual();
+        } else if (groups.length === 1) {
+          // Only one group — go straight to its map
+          var g = groups[0];
+          window.location.replace('map-' + g.players.length + '.html?group=' + encodeURIComponent(g.groupKey));
+        } else {
+          // Multiple groups — show selection
+          loadingEl.style.display = 'none';
+          groupEl.style.display   = '';
+          var container = document.getElementById('group-btns');
+          groups.forEach(function(g) {
+            var a = document.createElement('a');
+            a.className = 'group-btn';
+            a.href = 'map-' + g.players.length + '.html?group=' + encodeURIComponent(g.groupKey);
+            a.innerHTML =
+              g.players.join('  ·  ') +
+              '<span class="group-btn-sub">' + g.gameCount + ' game' + (g.gameCount !== 1 ? 's' : '') + '</span>';
+            container.appendChild(a);
+          });
         }
       } catch (e) {
-        // Offline or Firebase error — fall through to manual selection
+        showManual();
       }
-      document.getElementById('loading-msg').style.display   = 'none';
-      document.getElementById('manual-picker').style.display = '';
     })();
   </script>
 
