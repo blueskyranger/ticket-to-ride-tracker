@@ -238,14 +238,13 @@
   </div>
 
   <script src="map-shared.js"></script>
-  <script>
+  <script type="module">
+    import { fetchMapData } from './map-firebase.js';
+
     // =====================================================
     // 3-PLAYER MAP CONFIG
     // =====================================================
 
-    const GOAL = 1000; // season target score
-
-    // Visual theme for this page (Warm Parchment)
     const THEME = {
       mapBg:       '#ede0c4',
       trackColour: '#b09840',
@@ -253,44 +252,40 @@
       termColour:  '#7a5018',
     };
 
-    // *** Replace with real Firestore data when ready ***
+    // map-shared.js exposes these via window because `const` in a regular
+    // script is not automatically a global property
+    const COLOUR_OPTIONS = window.COLOUR_OPTIONS;
+    const OFFSETS        = window.OFFSETS_3;
+
+    // Fetch live data; fall back to placeholders if Firebase is unreachable
+    const raw      = await fetchMapData().catch(() => null);
+    const GOAL     = raw?.goal ?? 1000;
     const GAME_DATA = {
-      players: [
-        { name: 'Kevin',   pts: 634 },
-        { name: 'Paulina', pts: 521 },
-        { name: 'James',   pts: 488 },
-      ]
+      players: raw?.players.slice(0, 3) ?? [
+        { name: 'Player 1', pts: 0 },
+        { name: 'Player 2', pts: 0 },
+        { name: 'Player 3', pts: 0 },
+      ],
     };
 
-    // Default colour assignments: index into COLOUR_OPTIONS (0=Red, 1=Blue, 2=Green, 3=Black, 4=Yellow)
-    let assignments = [0, 1, 2]; // Kevin=Red, Paulina=Blue, James=Green
-
-    // Routes are generated once on load so they stay stable when colours change
+    // Default colour order: Red, Blue, Green
+    let assignments     = GAME_DATA.players.map((_, i) => i);
     const currentRoutes = pickRoutes(3);
 
-    // =====================================================
-    // COLOUR PICKER LOGIC
-    // =====================================================
-
-    // Returns true if a colour index is already taken by a different player
     function isColourTaken(colourIdx, exceptPlayer) {
       return assignments.some((c, i) => c === colourIdx && i !== exceptPlayer);
     }
 
-    // Called when a player clicks a swatch
     function selectColour(playerIdx, colourIdx) {
-      if (isColourTaken(colourIdx, playerIdx)) return; // already claimed
+      if (isColourTaken(colourIdx, playerIdx)) return;
       assignments[playerIdx] = colourIdx;
       updateSwatches();
       renderMap();
     }
 
-    // Refreshes all swatch buttons to show selected / taken / available states
     function updateSwatches() {
       document.querySelectorAll('.player-row').forEach((row, pi) => {
-        // Player name label takes on their chosen colour
         row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
-
         row.querySelectorAll('.swatch').forEach((btn, ci) => {
           const isSel   = assignments[pi] === ci;
           const isTaken = isColourTaken(ci, pi);
@@ -301,7 +296,6 @@
       });
     }
 
-    // Builds player objects with current colour choices and redraws the map
     function renderMap() {
       const players = GAME_DATA.players.map((p, pi) => ({
         name:   p.name,
@@ -312,11 +306,10 @@
         'map-svg', 'score-strip',
         players, currentRoutes, GOAL,
         THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
-        OFFSETS_3
+        OFFSETS
       );
     }
 
-    // Builds the colour picker HTML (one row per player)
     function buildPicker() {
       const bar = document.getElementById('setup-bar');
       GAME_DATA.players.forEach((p, pi) => {
@@ -330,7 +323,6 @@
 
         const swatchDiv = document.createElement('div');
         swatchDiv.className = 'swatches';
-
         COLOUR_OPTIONS.forEach((col, ci) => {
           const btn = document.createElement('button');
           btn.className = 'swatch';
@@ -345,7 +337,6 @@
       });
     }
 
-    // ---- Boot ----
     buildPicker();
     updateSwatches();
     renderMap();

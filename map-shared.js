@@ -3,13 +3,13 @@
 // Loaded by map-3.html, map-4.html, and map-5.html
 // =====================================================
 
-// The 5 fixed colour options players can choose from
+// The 5 Ticket to Ride train colours
 const COLOUR_OPTIONS = [
-  { key: 'red',    hex: '#c0392b', label: 'Red'    },
-  { key: 'blue',   hex: '#1565c0', label: 'Blue'   },
-  { key: 'green',  hex: '#2e7d32', label: 'Green'  },
-  { key: 'black',  hex: '#1a1a1a', label: 'Black'  },
-  { key: 'yellow', hex: '#d4a017', label: 'Yellow' },
+  { key: 'red',    hex: '#D32F2F', label: 'Red'    },
+  { key: 'blue',   hex: '#1565C0', label: 'Blue'   },
+  { key: 'green',  hex: '#2E7D32', label: 'Green'  },
+  { key: 'black',  hex: '#212121', label: 'Black'  },
+  { key: 'yellow', hex: '#FDD835', label: 'Yellow' },
 ];
 
 // =====================================================
@@ -249,6 +249,17 @@ function drawConnections(svg, strokeColour) {
     }, svg);
   });
 }
+
+// =====================================================
+// WINDOW EXPORTS
+// `const` declarations in regular scripts are NOT automatically on window,
+// so ES module scripts (map-3/4/5.html) can't access them by name alone.
+// Exposing them explicitly bridges that gap.
+// =====================================================
+window.COLOUR_OPTIONS = COLOUR_OPTIONS;
+window.OFFSETS_3      = OFFSETS_3;
+window.OFFSETS_4      = OFFSETS_4;
+window.OFFSETS_5      = OFFSETS_5;
 
 // =====================================================
 // MAIN MAP RENDER FUNCTION

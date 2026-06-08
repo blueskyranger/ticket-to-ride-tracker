@@ -228,12 +228,12 @@
   </div>
 
   <script src="map-shared.js"></script>
-  <script>
+  <script type="module">
+    import { fetchMapData } from './map-firebase.js';
+
     // =====================================================
     // 4-PLAYER MAP CONFIG
     // =====================================================
-
-    const GOAL = 1000;
 
     const THEME = {
       mapBg:       '#e2edd8',
@@ -242,18 +242,22 @@
       termColour:  '#2d5a18',
     };
 
-    // *** Replace with real Firestore data when ready ***
+    const COLOUR_OPTIONS = window.COLOUR_OPTIONS;
+    const OFFSETS        = window.OFFSETS_4;
+
+    const raw      = await fetchMapData().catch(() => null);
+    const GOAL     = raw?.goal ?? 1000;
     const GAME_DATA = {
-      players: [
-        { name: 'Kevin',   pts: 634 },
-        { name: 'Paulina', pts: 521 },
-        { name: 'James',   pts: 488 },
-        { name: 'Ursula',  pts: 312 },
-      ]
+      players: raw?.players.slice(0, 4) ?? [
+        { name: 'Player 1', pts: 0 },
+        { name: 'Player 2', pts: 0 },
+        { name: 'Player 3', pts: 0 },
+        { name: 'Player 4', pts: 0 },
+      ],
     };
 
-    let assignments = [0, 1, 2, 3]; // Red, Blue, Green, Black
-
+    // Default colour order: Red, Blue, Green, Black
+    let assignments     = GAME_DATA.players.map((_, i) => i);
     const currentRoutes = pickRoutes(4);
 
     function isColourTaken(colourIdx, exceptPlayer) {
@@ -290,7 +294,7 @@
         'map-svg', 'score-strip',
         players, currentRoutes, GOAL,
         THEME.mapBg, THEME.trackColour, THEME.cityStroke, THEME.termColour,
-        OFFSETS_4
+        OFFSETS
       );
     }
 

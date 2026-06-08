@@ -90,15 +90,41 @@
   <h1>Cape Town &rarr; Cairo</h1>
   <p class="subtitle">Season Progress Map</p>
 
-  <p class="prompt">How many players?</p>
+  <!-- Shown while Firebase resolves the player count -->
+  <p class="prompt" id="loading-msg">Loading season data…</p>
 
-  <div class="player-btns">
-    <a href="map-3.html" class="player-btn">3 Players</a>
-    <a href="map-4.html" class="player-btn">4 Players</a>
-    <a href="map-5.html" class="player-btn">5 Players</a>
+  <!-- Shown as fallback if Firebase is unavailable or player count is unexpected -->
+  <div id="manual-picker" style="display:none">
+    <p class="prompt">How many players?</p>
+    <div class="player-btns">
+      <a href="map-3.html" class="player-btn">3 Players</a>
+      <a href="map-4.html" class="player-btn">4 Players</a>
+      <a href="map-5.html" class="player-btn">5 Players</a>
+    </div>
   </div>
 
   <a href="index.html" class="back-link">← Back to Scoreboard</a>
+
+  <script type="module">
+    import { fetchMapData } from './map-firebase.js';
+
+    try {
+      const data = await fetchMapData();
+      const n    = data?.players?.length ?? 0;
+      if (n >= 3 && n <= 5) {
+        // Player count known — jump straight to the right map page
+        window.location.replace('map-' + n + '.html');
+      } else {
+        // Zero players, config not yet set up, or unusual count — show manual buttons
+        document.getElementById('loading-msg').style.display  = 'none';
+        document.getElementById('manual-picker').style.display = '';
+      }
+    } catch (e) {
+      // Offline or Firebase error — fall back to manual selection
+      document.getElementById('loading-msg').style.display  = 'none';
+      document.getElementById('manual-picker').style.display = '';
+    }
+  </script>
 
 </body>
 </html>
