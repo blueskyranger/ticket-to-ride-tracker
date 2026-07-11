@@ -545,6 +545,14 @@ input[type=number] { -moz-appearance: textfield; }
     font-family: 'Lato', sans-serif;
 }
 
+/* Per-group season goal shown in the group header */
+.group-goal {
+    font-size: 0.78rem;
+    font-family: 'Oswald', sans-serif;
+    color: var(--gold);
+    white-space: nowrap;
+}
+
 /* Flex wrapper so count and reset button sit side by side */
 .group-header-right {
     display: flex;
@@ -693,6 +701,26 @@ input[type=number] { -moz-appearance: textfield; }
     border-radius: 12px;
     font-family: 'Oswald', sans-serif;
     font-size: 0.78rem;
+}
+
+/* Delete button on each history row — pushed to the right edge */
+.btn-delete-game {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-mid);
+    opacity: 0.5;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s, opacity 0.15s, background 0.15s;
+}
+.btn-delete-game:hover {
+    color: #c0392b;
+    opacity: 1;
+    background: var(--cream-dark);
 }
 
 /* =====================================================

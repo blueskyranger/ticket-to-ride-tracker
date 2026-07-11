@@ -161,9 +161,9 @@
 
         <main class="app-content">
 
-            <!-- Season goal banner -->
+            <!-- Default goal banner (each group's own goal shows on its card) -->
             <div class="goal-banner">
-                <span class="goal-label">🏆 Season Goal</span>
+                <span class="goal-label">🏆 Default Goal</span>
                 <span class="goal-value" id="goal-display">1,000 pts</span>
             </div>
 
@@ -203,6 +203,12 @@
                 </div>
                 <!-- Score inputs are rendered dynamically when players are checked -->
                 <div id="game-score-inputs"></div>
+                <!-- Shown only when the selected players are a NEW group -->
+                <div id="game-goal-section" class="form-group hidden">
+                    <label for="game-goal">Season Goal for this group <span class="label-hint">(points)</span></label>
+                    <input type="number" id="game-goal" placeholder="1000" min="1" inputmode="numeric">
+                    <small>New group! First player to reach this total wins the season.</small>
+                </div>
                 <div class="form-group">
                     <label for="game-date">Date</label>
                     <input type="date" id="game-date">
@@ -228,7 +234,7 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="settings-goal">Season Goal (points)</label>
+                    <label for="settings-goal">Default Season Goal <span class="label-hint">(offered to new groups)</span></label>
                     <input type="number" id="settings-goal" placeholder="1000">
                 </div>
                 <div class="form-group">

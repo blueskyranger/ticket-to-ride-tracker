@@ -36,13 +36,20 @@ const db          = getFirestore(firebaseApp);
 // Firestore collection names — completely separate from HRB Cleaning
 const COL_CONFIG = "ttr_config";   // single doc: "config"
 const COL_GAMES  = "ttr_games";    // one doc per game
+const COL_GROUPS = "ttr_groups";   // one doc per player group per season (holds the group's goal)
+
+// Key used in sessionStorage to remember a correct PIN entry.
+// sessionStorage survives page navigation (e.g. map view and back)
+// but is cleared when the browser tab is closed.
+const PIN_SESSION_KEY = "ttr_pin_ok";
 
 // =====================================================
 // APP STATE — single source of truth
 // =====================================================
 const state = {
-    config:        null,   // { pin, goal, players[], seasonStart }
+    config:        null,   // { pin, goal (default for new groups), players[], season }
     games:         [],     // all game docs from Firestore for current season
+    groups:        [],     // all group docs (goal per player group) for current season
     authenticated: false
 };
 
@@ -70,8 +77,16 @@ async function init() {
         renderSetupPlayers();
     } else {
         state.config = configSnap.data();
-        showScreen("screen-pin");
-        setupPinInputs();
+
+        // Skip the PIN screen if it was already entered correctly
+        // in this browser session (e.g. coming back from the map view)
+        if (sessionStorage.getItem(PIN_SESSION_KEY) === String(state.config.pin)) {
+            state.authenticated = true;
+            enterMainApp();
+        } else {
+            showScreen("screen-pin");
+            setupPinInputs();
+        }
     }
 }
 
@@ -121,6 +136,11 @@ function checkPin() {
 
     if (entered === String(state.config.pin)) {
         state.authenticated = true;
+        // Remember the PIN for this browser session so navigating
+        // away (e.g. to the map) and back doesn't ask for it again.
+        // Storing the PIN value (not just a flag) means a PIN change
+        // in Settings automatically invalidates old sessions.
+        sessionStorage.setItem(PIN_SESSION_KEY, entered);
         error.classList.add("hidden");
         enterMainApp();
     } else {
@@ -137,10 +157,12 @@ function checkPin() {
 function enterMainApp() {
     showScreen("screen-main");
     updateGoalDisplay();
-    listenToGames();   // real-time Firestore listener
+    listenToGroups();  // real-time listener for per-group goals
+    listenToGames();   // real-time listener for game results
 }
 
-// Updates the goal number shown in the banner
+// Updates the default goal number shown in the banner
+// (this is the goal offered to NEW groups; each group has its own)
 function updateGoalDisplay() {
     document.getElementById("goal-display").textContent =
         Number(state.config.goal).toLocaleString() + " pts";
@@ -195,6 +217,43 @@ async function saveSetup() {
 }
 
 // =====================================================
+// GROUP GOALS
+// Each player group has its own season goal, stored as
+// one document per group per season in COL_GROUPS.
+// =====================================================
+
+// Finds the group doc for a groupKey in the current season
+// Returns undefined if this group hasn't set a goal yet
+function findGroup(groupKey) {
+    return state.groups.find(g => g.groupKey === groupKey);
+}
+
+// Returns the goal for a group.
+// Groups created before this feature have no group doc,
+// so they fall back to the global default goal in config.
+function groupGoal(groupKey) {
+    const group = findGroup(groupKey);
+    return group ? Number(group.goal) : Number(state.config.goal);
+}
+
+// True once the first groups snapshot has arrived.
+// Prevents checkForWinners() running against fallback goals
+// before the real per-group goals have loaded.
+let groupsLoaded = false;
+
+// Real-time listener that keeps state.groups in sync
+function listenToGroups() {
+    onSnapshot(collection(db, COL_GROUPS), snap => {
+        const currentSeason = state.config.season ?? 0;
+        state.groups = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(g => (g.season ?? 0) === currentSeason);
+        groupsLoaded = true;
+        renderGroups();
+    });
+}
+
+// =====================================================
 // ADD GAME MODAL
 // =====================================================
 
@@ -215,6 +274,10 @@ function openAddGame() {
         ).join("");
 
     document.getElementById("game-score-inputs").innerHTML = "";
+
+    // Reset the new-group goal field (hidden until a new combo is picked)
+    document.getElementById("game-goal").value = state.config.goal;
+    document.getElementById("game-goal-section").classList.add("hidden");
 }
 
 function closeAddGame() {
@@ -226,16 +289,31 @@ function updateScoreInputs() {
     const checked   = checkedPlayers();
     const container = document.getElementById("game-score-inputs");
 
-    if (checked.length === 0) { container.innerHTML = ""; return; }
+    if (checked.length === 0) { container.innerHTML = ""; }
+    else {
+        container.innerHTML =
+            `<p class="score-section-label">Enter final scores</p>` +
+            checked.map(p =>
+                `<div class="score-row">
+                   <label for="score-${p}">${p}</label>
+                   <input type="number" id="score-${p}" placeholder="0" min="0" inputmode="numeric">
+                 </div>`
+            ).join("");
+    }
 
-    container.innerHTML =
-        `<p class="score-section-label">Enter final scores</p>` +
-        checked.map(p =>
-            `<div class="score-row">
-               <label for="score-${p}">${p}</label>
-               <input type="number" id="score-${p}" placeholder="0" min="0" inputmode="numeric">
-             </div>`
-        ).join("");
+    updateGoalInput();
+}
+
+// Shows the season-goal field only when the selected players
+// are a NEW group (no goal stored yet for this season)
+function updateGoalInput() {
+    const checked = checkedPlayers();
+    const section = document.getElementById("game-goal-section");
+    const isNewGroup =
+        checked.length >= 2 &&
+        !findGroup([...checked].sort().join(","));
+
+    section.classList.toggle("hidden", !isNewGroup);
 }
 
 // Returns names of currently checked players
@@ -259,6 +337,21 @@ async function submitGame() {
     const date     = document.getElementById("game-date").value || todayISO();
     // groupKey is a sorted comma-separated player list — used to identify unique groups
     const groupKey = [...players].sort().join(",");
+
+    // First game for this group this season? Save their chosen goal first.
+    if (!findGroup(groupKey)) {
+        const goalVal = parseInt(document.getElementById("game-goal").value);
+        if (isNaN(goalVal) || goalVal < 1) {
+            alert("Enter a valid season goal for this new group.");
+            return;
+        }
+        await addDoc(collection(db, COL_GROUPS), {
+            groupKey,
+            goal:      goalVal,
+            season:    state.config.season ?? 0,
+            createdAt: serverTimestamp()
+        });
+    }
 
     await addDoc(collection(db, COL_GAMES), {
         date,
@@ -322,7 +415,7 @@ function renderGroupSection(groupKey, games) {
     const players = groupKey.split(",");
     const totals  = calcTotals(players, games);
     const sorted  = [...totals].sort((a, b) => b.total - a.total);
-    const goal    = Number(state.config.goal);
+    const goal    = groupGoal(groupKey);   // each group has its own goal
     const count   = games.length;
 
     const rows = sorted.map((entry, i) => renderRow(entry, i, goal)).join("");
@@ -337,6 +430,7 @@ function renderGroupSection(groupKey, games) {
           <div class="group-header">
             <span class="group-title">🚂 ${players.join("  ·  ")}</span>
             <div class="group-header-right">
+              <span class="group-goal">🏆 ${goal.toLocaleString()}</span>
               <span class="group-count">${count} game${count !== 1 ? "s" : ""}</span>
               <button class="btn-group-reset"
                       onclick='resetGroup(${escapedKey})'
@@ -385,7 +479,7 @@ function renderRow(entry, index, goal) {
         </div>`;
 }
 
-// Renders game history list (newest first)
+// Renders game history list (newest first), each with a delete button
 function renderHistory(games) {
     return [...games].reverse().map(game => {
         const chips = Object.entries(game.scores)
@@ -396,8 +490,32 @@ function renderHistory(games) {
             <div class="history-game">
               <span class="history-date">${formatDate(game.date)}</span>
               ${chips}
+              <button class="btn-delete-game"
+                      onclick="deleteGame('${game.id}')"
+                      title="Delete this game"
+                      aria-label="Delete game from ${formatDate(game.date)}">✕</button>
             </div>`;
     }).join("");
+}
+
+// Deletes ONE game document after confirmation.
+// Each game is its own Firestore doc, so nothing else is affected;
+// the live listener re-renders totals automatically.
+async function deleteGame(id) {
+    const game = state.games.find(g => g.id === id);
+    if (!game) return;
+
+    const summary = Object.entries(game.scores)
+        .map(([name, pts]) => `${name}: ${pts}`)
+        .join(", ");
+
+    const confirmed = confirm(
+        `Delete this game?\n\n${formatDate(game.date)} — ${summary}\n\n` +
+        "This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    await deleteDoc(doc(db, COL_GAMES, id));
 }
 
 // Toggles the history panel open/closed
@@ -412,25 +530,36 @@ function toggleHistory(btn) {
 // WINNER DETECTION & CELEBRATION
 // =====================================================
 
+// Checks each group separately against that group's own goal.
+// (Previously all groups were merged, so a player in two groups
+// could "win" without any single group reaching its goal.)
 function checkForWinners() {
-    const goal        = Number(state.config.goal);
-    // Track who we've already celebrated this session so it doesn't re-fire
-    const celebrated  = (sessionStorage.getItem("ttr_celebrated") || "").split(",");
+    // Wait until real per-group goals have loaded (see groupsLoaded)
+    if (!groupsLoaded) return;
 
-    // Compute overall totals across all games (regardless of group)
-    const overall = {};
-    state.games.forEach(game =>
-        Object.entries(game.scores).forEach(([p, pts]) => {
-            overall[p] = (overall[p] || 0) + pts;
-        })
-    );
+    // Track who we've already celebrated this session so it doesn't
+    // re-fire. Stored as a JSON array of "groupKey|player" strings.
+    const celebrated = JSON.parse(sessionStorage.getItem("ttr_celebrated") || "[]");
 
-    Object.entries(overall).forEach(([player, total]) => {
-        if (total >= goal && !celebrated.includes(player)) {
-            celebrated.push(player);
-            sessionStorage.setItem("ttr_celebrated", celebrated.filter(Boolean).join(","));
-            showCelebration(player, total);
-        }
+    // Bucket games by group, same as the scoreboard does
+    const groups = {};
+    state.games.forEach(game => {
+        if (!groups[game.groupKey]) groups[game.groupKey] = [];
+        groups[game.groupKey].push(game);
+    });
+
+    Object.entries(groups).forEach(([groupKey, games]) => {
+        const goal   = groupGoal(groupKey);
+        const totals = calcTotals(groupKey.split(","), games);
+
+        totals.forEach(({ name, total }) => {
+            const celebrationKey = `${groupKey}|${name}`;
+            if (total >= goal && !celebrated.includes(celebrationKey)) {
+                celebrated.push(celebrationKey);
+                sessionStorage.setItem("ttr_celebrated", JSON.stringify(celebrated));
+                showCelebration(name, total);
+            }
+        });
     });
 }
 
@@ -585,10 +714,14 @@ async function resetAllData() {
         return;
     }
 
-    // Fetch and delete all game documents
+    // Fetch and delete all game AND group documents
     // Firestore has no bulk delete — we delete each doc individually
-    const snap = await getDocs(collection(db, COL_GAMES));
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    const gamesSnap  = await getDocs(collection(db, COL_GAMES));
+    const groupsSnap = await getDocs(collection(db, COL_GROUPS));
+    await Promise.all([
+        ...gamesSnap.docs.map(d => deleteDoc(d.ref)),
+        ...groupsSnap.docs.map(d => deleteDoc(d.ref))
+    ]);
 
     // Clear the season start so nothing is filtered
     const updated = { ...state.config, seasonStart: null };
@@ -613,11 +746,18 @@ async function resetGroup(groupKey) {
     const confirmed = confirm(
         `Reset scores for ${players}?\n\n` +
         `This will delete ${count} game${count !== 1 ? "s" : ""} for this group.\n\n` +
+        "The group will set a fresh season goal on their next game.\n\n" +
         "This cannot be undone."
     );
     if (!confirmed) return;
 
-    await Promise.all(groupGames.map(g => deleteDoc(doc(db, COL_GAMES, g.id))));
+    // Delete the group's games AND its goal doc, so the goal
+    // is asked again when this group starts playing again
+    const groupDoc = findGroup(groupKey);
+    await Promise.all([
+        ...groupGames.map(g => deleteDoc(doc(db, COL_GAMES, g.id))),
+        ...(groupDoc ? [deleteDoc(doc(db, COL_GROUPS, groupDoc.id))] : [])
+    ]);
 }
 
 // =====================================================
@@ -642,9 +782,11 @@ async function newSeason() {
     sessionStorage.removeItem("ttr_celebrated");
     closeSettings();
     // Manually re-filter and re-render — the Firestore listener won't fire
-    // on its own because no game documents changed, only the config did
+    // on its own because no game documents changed, only the config did.
+    // Groups are filtered too, so every group sets a fresh goal next season.
     const currentSeason = updated.season;
-    state.games = state.games.filter(g => (g.season ?? 0) === currentSeason);
+    state.games  = state.games.filter(g => (g.season ?? 0) === currentSeason);
+    state.groups = state.groups.filter(g => (g.season ?? 0) === currentSeason);
     renderGroups();
 }
 
@@ -677,6 +819,7 @@ window.openAddGame          = openAddGame;
 window.closeAddGame         = closeAddGame;
 window.updateScoreInputs    = updateScoreInputs;
 window.submitGame           = submitGame;
+window.deleteGame           = deleteGame;
 window.toggleHistory        = toggleHistory;
 window.closeCelebration     = closeCelebration;
 window.openSettings         = openSettings;
