@@ -339,30 +339,49 @@ async function submitGame() {
     const groupKey = [...players].sort().join(",");
 
     // First game for this group this season? Save their chosen goal first.
+    let goalVal = null;
     if (!findGroup(groupKey)) {
-        const goalVal = parseInt(document.getElementById("game-goal").value);
+        goalVal = parseInt(document.getElementById("game-goal").value);
         if (isNaN(goalVal) || goalVal < 1) {
             alert("Enter a valid season goal for this new group.");
             return;
         }
-        await addDoc(collection(db, COL_GROUPS), {
-            groupKey,
-            goal:      goalVal,
-            season:    state.config.season ?? 0,
-            createdAt: serverTimestamp()
-        });
     }
 
-    await addDoc(collection(db, COL_GAMES), {
-        date,
-        players,
-        scores,
-        groupKey,
-        season: state.config.season ?? 0,
-        createdAt: serverTimestamp()
-    });
+    // Disable the button and show progress so a slow/failed save is never
+    // silently invisible to the user (previously an error here just left
+    // the modal sitting there with no feedback at all).
+    const saveBtn = document.getElementById("btn-save-game");
+    saveBtn.disabled    = true;
+    saveBtn.textContent = "Saving…";
 
-    closeAddGame();
+    try {
+        if (goalVal !== null) {
+            await addDoc(collection(db, COL_GROUPS), {
+                groupKey,
+                goal:      goalVal,
+                season:    state.config.season ?? 0,
+                createdAt: serverTimestamp()
+            });
+        }
+
+        await addDoc(collection(db, COL_GAMES), {
+            date,
+            players,
+            scores,
+            groupKey,
+            season: state.config.season ?? 0,
+            createdAt: serverTimestamp()
+        });
+
+        closeAddGame();
+    } catch (err) {
+        console.error("Failed to save game:", err);
+        alert("Could not save this game — check your internet connection and try again.\n\n" + err.message);
+    } finally {
+        saveBtn.disabled    = false;
+        saveBtn.textContent = "Save Result";
+    }
 }
 
 // =====================================================
