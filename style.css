@@ -676,15 +676,26 @@ input[type=number] { -moz-appearance: textfield; }
 .history-list.open { display: block; }
 
 .history-game {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.4rem;
     padding: 0.5rem 0;
     border-bottom: 1px dashed var(--cream-dark);
     font-size: 0.85rem;
 }
 .history-game:last-child { border-bottom: none; }
+
+.history-winner {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    margin-bottom: 0.3rem;
+}
+.history-winner strong { color: var(--navy); }
+
+.history-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+}
 
 .history-date {
     font-family: 'Oswald', sans-serif;

@@ -43,6 +43,38 @@ const COL_GROUPS = "ttr_groups";   // one doc per player group per season (holds
 // but is cleared when the browser tab is closed.
 const PIN_SESSION_KEY = "ttr_pin_ok";
 
+// Pool of train-themed names randomly assigned to each saved game,
+// so history entries read like "Kevin won 'The Midnight Express'"
+// instead of just a bare date.
+const GAME_NAMES = [
+    "The Midnight Express", "The Great Route Heist", "Iron Horse Gambit",
+    "The Last Spike", "Boxcar Bonanza", "The Whistle-Stop Sprint",
+    "Tunnel Vision", "The Ticket Heist", "Rail Baron's Revenge",
+    "The Grand Junction", "Steel Wheels Sprint", "The Overnight Express",
+    "The Freight Frenzy", "Depot Duel", "The Long Haul",
+    "Switchback Showdown", "The Golden Spike Gambit", "The Scenic Route Scramble",
+    "All Aboard Ambush", "The Caboose Comeback", "The Sleeper Car Shuffle",
+    "Trans-Continental Tussle", "The Coal Car Clash", "Signal Box Standoff",
+    "The Platform Standoff", "Junction Jitters", "The Timetable Tangle",
+    "Derailed Ambitions", "The Silver Rail Showdown", "Track Record",
+    "The Cross-Country Clash", "Full Steam Ahead", "The Branch Line Brawl",
+    "Coupling Chaos", "The Terminus Tangle", "Night Train Nerves",
+    "The Locomotion Duel", "Rails and Rivals", "The Border Crossing",
+    "Whistle Blown"
+];
+
+function pickGameName() {
+    return GAME_NAMES[Math.floor(Math.random() * GAME_NAMES.length)];
+}
+
+// Returns the name(s) of the top scorer(s) in a single game, joined
+// with " & " in the (rare) case of a tie.
+function gameWinner(game) {
+    const entries = Object.entries(game.scores);
+    const top     = Math.max(...entries.map(([, pts]) => pts));
+    return entries.filter(([, pts]) => pts === top).map(([name]) => name).join(" & ");
+}
+
 // =====================================================
 // APP STATE — single source of truth
 // =====================================================
@@ -370,6 +402,7 @@ async function submitGame() {
             players,
             scores,
             groupKey,
+            gameName: pickGameName(),
             season: state.config.season ?? 0,
             createdAt: serverTimestamp()
         });
@@ -505,14 +538,21 @@ function renderHistory(games) {
             .sort((a, b) => b[1] - a[1])
             .map(([name, pts]) => `<span class="score-chip">${name}: ${pts}</span>`)
             .join("");
+        // Older games saved before this feature don't have a gameName.
+        const winnerLine = game.gameName
+            ? `<div class="history-winner">🏆 <strong>${gameWinner(game)}</strong> in the lead — “${game.gameName}”</div>`
+            : "";
         return `
             <div class="history-game">
-              <span class="history-date">${formatDate(game.date)}</span>
-              ${chips}
-              <button class="btn-delete-game"
-                      onclick="deleteGame('${game.id}')"
-                      title="Delete this game"
-                      aria-label="Delete game from ${formatDate(game.date)}">✕</button>
+              ${winnerLine}
+              <div class="history-row">
+                <span class="history-date">${formatDate(game.date)}</span>
+                ${chips}
+                <button class="btn-delete-game"
+                        onclick="deleteGame('${game.id}')"
+                        title="Delete this game"
+                        aria-label="Delete game from ${formatDate(game.date)}">✕</button>
+              </div>
             </div>`;
     }).join("");
 }
