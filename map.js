@@ -14,12 +14,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey:            "AIzaSyAwyzLorHfENmCOVr3B1q4FhUn7sI565cI",
-    authDomain:        "hrb-cleaning-v2.firebaseapp.com",
-    projectId:         "hrb-cleaning-v2",
-    storageBucket:     "hrb-cleaning-v2.firebasestorage.app",
-    messagingSenderId: "30392652789",
-    appId:             "1:30392652789:web:e4c0fc5202299cc4df46bc"
+    apiKey:            "AIzaSyBIRumuNvUAAHz4-idXDMia7-OVY4_9UeY",
+    authDomain:        "ticket-to-ride-tracker-3072f.firebaseapp.com",
+    projectId:         "ticket-to-ride-tracker-3072f",
+    storageBucket:     "ticket-to-ride-tracker-3072f.firebasestorage.app",
+    messagingSenderId: "967305312959",
+    appId:             "1:967305312959:web:e2b4c63ae4998d269ea40a"
 };
 
 const app  = initializeApp(firebaseConfig);
