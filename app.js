@@ -221,7 +221,6 @@ function addSetupPlayer() {
     const name  = input.value.trim();
     if (!name) return;
     if (setupPlayers.includes(name))  { alert("That player is already in the list."); return; }
-    if (setupPlayers.length >= 6)     { alert("Maximum 6 players allowed."); return; }
     setupPlayers.push(name);
     input.value = "";
     renderSetupPlayers();
@@ -718,7 +717,6 @@ function addSettingsPlayer() {
     const name  = input.value.trim();
     if (!name) return;
     if (settingsPlayers.includes(name)) { alert("Player already exists."); return; }
-    if (settingsPlayers.length >= 6)    { alert("Maximum 6 players."); return; }
     settingsPlayers.push(name);
     input.value = "";
     renderSettingsPlayers();
