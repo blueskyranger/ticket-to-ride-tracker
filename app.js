@@ -286,13 +286,6 @@ function findGroupByBucketKey(bucketKey) {
     return state.groups.find(g => g.groupKey === bucketKey && g.name === undefined);
 }
 
-// Returns the goal for a group, falling back to the global
-// default goal in config if no group doc matches (legacy data).
-function groupGoalFor(bucketKey) {
-    const group = findGroupByBucketKey(bucketKey);
-    return group ? Number(group.goal) : Number(state.config.goal);
-}
-
 // The label shown on a group's card: its chosen name, or the
 // player list if it was never named (or predates this feature).
 function groupDisplayName(group, players) {
@@ -766,9 +759,10 @@ function checkForWinners() {
     // Wait until real per-group goals have loaded (see groupsLoaded)
     if (!groupsLoaded) return;
 
-    // Track who we've already celebrated this session so it doesn't
-    // re-fire. Stored as a JSON array of "bucketKey|player" strings.
-    const celebrated = JSON.parse(sessionStorage.getItem("ttr_celebrated") || "[]");
+    // Belt-and-braces guard against firing twice within the SAME
+    // session (e.g. two render passes before Firestore echoes our
+    // write back). Stored as "bucketKey|player" strings.
+    const sessionCelebrated = JSON.parse(sessionStorage.getItem("ttr_celebrated") || "[]");
 
     // Bucket games the same way the scoreboard does
     const buckets = {};
@@ -779,15 +773,30 @@ function checkForWinners() {
     });
 
     Object.entries(buckets).forEach(([bucketKey, games]) => {
-        const goal   = groupGoalFor(bucketKey);
-        const totals = calcTotals(games[0].groupKey.split(","), games);
+        const group   = findGroupByBucketKey(bucketKey);
+        const goal    = group ? Number(group.goal) : Number(state.config.goal);
+        const totals  = calcTotals(games[0].groupKey.split(","), games);
+        // Names already celebrated for THIS group, persisted in Firestore —
+        // this is what makes a win stay "seen" across page reloads, new
+        // browser sessions, and other devices, instead of just this tab.
+        const persisted = group?.celebratedWinners || [];
 
         totals.forEach(({ name, total }) => {
-            const celebrationKey = `${bucketKey}|${name}`;
-            if (total >= goal && !celebrated.includes(celebrationKey)) {
-                celebrated.push(celebrationKey);
-                sessionStorage.setItem("ttr_celebrated", JSON.stringify(celebrated));
+            const celebrationKey  = `${bucketKey}|${name}`;
+            const alreadyCelebrated = persisted.includes(name) || sessionCelebrated.includes(celebrationKey);
+
+            if (total >= goal && !alreadyCelebrated) {
+                sessionCelebrated.push(celebrationKey);
+                sessionStorage.setItem("ttr_celebrated", JSON.stringify(sessionCelebrated));
                 showCelebration(name, total);
+
+                // Persist permanently so this group's win for this player
+                // never pops up again, on any device.
+                if (group) {
+                    const updated = [...persisted, name];
+                    setDoc(doc(db, COL_GROUPS, group.id), { celebratedWinners: updated }, { merge: true })
+                        .catch(err => console.error("Failed to persist celebration state:", err));
+                }
             }
         });
     });
