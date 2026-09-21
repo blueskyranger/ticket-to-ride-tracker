@@ -7,10 +7,11 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth, signInAnonymously }      from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import {
     getFirestore,
-    doc, getDoc,
+    doc, getDoc, setDoc,
     collection, getDocs,
     query, orderBy,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { bucketKeyFor, findGroupByBucketKey } from "./group-utils.js";
 
 const firebaseConfig = {
     apiKey:            "AIzaSyBIRumuNvUAAHz4-idXDMia7-OVY4_9UeY",
@@ -27,69 +28,114 @@ const db          = getFirestore(firebaseApp);
 
 const COL_CONFIG = "ttr_config";
 const COL_GAMES  = "ttr_games";
+const COL_GROUPS = "ttr_groups";
 
-// Shared helper: sign in + fetch config + fetch season games
+// Shared helper: sign in + fetch config + fetch season games + fetch season groups
 async function loadBase() {
     await signInAnonymously(auth);
     const configSnap = await getDoc(doc(db, COL_CONFIG, "config"));
     if (!configSnap.exists()) return null;
     const config = configSnap.data();
     const season = config.season ?? 0;
-    const snap   = await getDocs(query(collection(db, COL_GAMES), orderBy("date", "asc")));
-    const games  = snap.docs.map(d => d.data()).filter(g => (g.season ?? 0) === season);
-    return { config, games };
+
+    const gamesSnap  = await getDocs(query(collection(db, COL_GAMES), orderBy("date", "asc")));
+    const games      = gamesSnap.docs.map(d => d.data()).filter(g => (g.season ?? 0) === season);
+
+    const groupsSnap = await getDocs(collection(db, COL_GROUPS));
+    const groups     = groupsSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(g => (g.season ?? 0) === season);
+
+    return { config, games, groups };
 }
 
-// Returns all active groups in the current season with their player lists and game counts.
-// Used by map.html to build the group-selection screen.
+// Returns all active groups in the current season with their player lists,
+// game counts, and names. Used by map.html to build the group-selection screen.
 export async function fetchGroups() {
     const base = await loadBase();
-    if (!base) return { groups: [], goal: 1000 };
+    if (!base) return { groups: [] };
+    const { games, groups } = base;
 
-    const { config, games } = base;
-    const groupMap = {};
-    games.forEach(g => {
-        if (!groupMap[g.groupKey]) {
-            groupMap[g.groupKey] = {
-                groupKey:  g.groupKey,
-                players:   g.groupKey.split(','),
-                gameCount: 0,
-            };
-        }
-        groupMap[g.groupKey].gameCount++;
+    // Bucket games the same way the main scoreboard does (see group-utils.js)
+    // so two groups sharing a roster show up as two separate entries here,
+    // not merged into one.
+    const buckets = {};
+    games.forEach(game => {
+        const key = bucketKeyFor(game);
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(game);
     });
 
-    return {
-        groups: Object.values(groupMap),
-        goal:   Number(config.goal),
-    };
+    const result = Object.entries(buckets).map(([bucketKey, bucketGames]) => {
+        const group = findGroupByBucketKey(groups, bucketKey);
+        return {
+            bucketKey,
+            players:   bucketGames[0].groupKey.split(","),
+            name:      (group && group.name) ? group.name : null,
+            gameCount: bucketGames.length,
+        };
+    });
+
+    // Only groups the map pages support (3–5 players)
+    return { groups: result.filter(g => g.players.length >= 3 && g.players.length <= 5) };
 }
 
-// Fetches scores for a specific group (by groupKey) or for all registered players
-// if no groupKey is provided.
-// Returns { players: [{name, pts}, ...], goal } or null if no config exists.
-export async function fetchMapData(groupKey = null) {
+// Fetches scores for a specific group (by bucket key — see group-utils.js)
+// or for all registered players if no bucket key is provided (used by the
+// map-3/4/5 fallback flow before any groups exist).
+export async function fetchMapData(bucketKey = null) {
     const base = await loadBase();
     if (!base) return null;
+    const { config, games, groups } = base;
 
-    const { config, games } = base;
+    if (!bucketKey) {
+        const totals = {};
+        config.players.forEach(p => { totals[p] = 0; });
+        games.forEach(game =>
+            Object.entries(game.scores).forEach(([p, pts]) => { if (p in totals) totals[p] += pts; })
+        );
+        return {
+            players:      config.players.map(name => ({ name, pts: totals[name] })),
+            goal:         Number(config.goal),
+            groupId:      null,
+            groupName:    null,
+            mapRoutes:    null,
+            mapColours:   null,
+            orderedGames: [],
+        };
+    }
 
-    // Scope the player list and games to the chosen group, or use all registered players
-    const playerList    = groupKey ? groupKey.split(',') : config.players;
-    const relevantGames = groupKey
-        ? games.filter(g => g.groupKey === groupKey)
-        : games;
+    const group          = findGroupByBucketKey(groups, bucketKey);
+    const relevantGames  = games
+        .filter(g => bucketKeyFor(g) === bucketKey)
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
+    const playerList = relevantGames.length ? relevantGames[0].groupKey.split(",") : bucketKey.split(",");
     const totals = {};
     playerList.forEach(p => { totals[p] = 0; });
     relevantGames.forEach(game =>
-        Object.entries(game.scores).forEach(([p, pts]) => {
-            if (p in totals) totals[p] += pts;
-        })
+        Object.entries(game.scores).forEach(([p, pts]) => { if (p in totals) totals[p] += pts; })
     );
 
     return {
-        players: playerList.map(name => ({ name, pts: totals[name] })),
-        goal:    Number(config.goal),
+        players:      playerList.map(name => ({ name, pts: totals[name] })),
+        goal:         group ? Number(group.goal) : Number(config.goal),
+        groupId:      group ? group.id : null,
+        groupName:    (group && group.name) ? group.name : null,
+        mapRoutes:    (group && group.mapRoutes)  || null,
+        mapColours:   (group && group.mapColours) || null,
+        orderedGames: relevantGames,
     };
+}
+
+// Persists the map's route and/or colour assignment onto the group's own
+// Firestore doc, so the same journey (and colour choices) show up again
+// next time anyone opens this group's map, instead of re-randomizing.
+export async function saveGroupMapSettings(groupId, { routes, colours } = {}) {
+    if (!groupId) return;
+    const updates = {};
+    if (routes)  updates.mapRoutes  = routes;
+    if (colours) updates.mapColours = colours;
+    if (Object.keys(updates).length === 0) return;
+    await setDoc(doc(db, COL_GROUPS, groupId), updates, { merge: true });
 }

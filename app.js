@@ -18,6 +18,7 @@ import {
     query, orderBy, onSnapshot,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { bucketKeyFor, findGroupByBucketKey, groupDisplayName } from "./group-utils.js";
 
 // --- Firebase config (dedicated project) ---
 const firebaseConfig = {
@@ -252,12 +253,11 @@ async function saveSetup() {
 // Each player group has its own season goal, stored as
 // one document per group per season in COL_GROUPS.
 //
-// A "bucket key" identifies one scoreboard card:
-//   - for games saved with this feature, it's the group's own
-//     Firestore doc id (game.groupId)
-//   - for older games saved before groups had an id, it falls
-//     back to the groupKey (sorted player list) they were saved
-//     with, same as the app behaved before this change
+// Bucketing (bucketKeyFor / findGroupByBucketKey / groupDisplayName)
+// lives in group-utils.js, shared with map-firebase.js, so the
+// scoreboard and the season map can't drift apart on how a group is
+// identified — that drift is exactly how the map ended up merging
+// two same-roster groups together.
 // =====================================================
 
 // All existing groups whose player list matches this exact groupKey.
@@ -266,30 +266,10 @@ function groupsForKey(groupKey) {
     return state.groups.filter(g => g.groupKey === groupKey);
 }
 
-// The bucket key a given game belongs on the scoreboard under.
-function bucketKeyFor(game) {
-    return game.groupId || game.groupKey;
-}
-
-// Finds the group doc for a bucket key (see note above).
-// Returns undefined for legacy games whose group doc was deleted.
-function findGroupByBucketKey(bucketKey) {
-    // New-style bucket keys are a group's own Firestore id — exact match.
-    const byId = state.groups.find(g => g.id === bucketKey);
-    if (byId) return byId;
-
-    // Legacy games (no groupId) fall back to matching by groupKey. Only
-    // match against groups saved under the OLD schema (no `name` field
-    // at all) — otherwise, once a named group shares a roster with the
-    // legacy group, this could resolve to the wrong one (a bug caught
-    // in testing: both cards ended up showing the new group's name).
-    return state.groups.find(g => g.groupKey === bucketKey && g.name === undefined);
-}
-
-// The label shown on a group's card: its chosen name, or the
-// player list if it was never named (or predates this feature).
-function groupDisplayName(group, players) {
-    return (group && group.name) ? group.name : players.join("  ·  ");
+// Thin wrapper: the shared helper takes a group list explicitly,
+// app.js always means state.groups.
+function groupByBucketKey(bucketKey) {
+    return findGroupByBucketKey(state.groups, bucketKey);
 }
 
 // True once the first groups snapshot has arrived.
@@ -354,7 +334,7 @@ function addResultToGroup(bucketKey) {
     if (groupGames.length === 0) return;
 
     const players = groupGames[0].groupKey.split(",");
-    const group   = findGroupByBucketKey(bucketKey);
+    const group   = groupByBucketKey(bucketKey);
 
     // Every group should have a doc (it's created alongside its first
     // game), but fall back to the normal unlocked flow just in case.
@@ -615,7 +595,7 @@ function renderGroupSection(bucketKey, games) {
     // tells us the player list.
     const groupKey = games[0].groupKey;
     const players  = groupKey.split(",");
-    const group    = findGroupByBucketKey(bucketKey);
+    const group    = groupByBucketKey(bucketKey);
     const totals   = calcTotals(players, games);
     const sorted   = [...totals].sort((a, b) => b.total - a.total);
     const goal     = group ? Number(group.goal) : Number(state.config.goal);
@@ -773,7 +753,7 @@ function checkForWinners() {
     });
 
     Object.entries(buckets).forEach(([bucketKey, games]) => {
-        const group   = findGroupByBucketKey(bucketKey);
+        const group   = groupByBucketKey(bucketKey);
         const goal    = group ? Number(group.goal) : Number(state.config.goal);
         const totals  = calcTotals(games[0].groupKey.split(","), games);
         // Names already celebrated for THIS group, persisted in Firestore —
@@ -993,7 +973,7 @@ async function resetGroup(bucketKey) {
 
     // Delete the group's games AND its goal doc, so the goal
     // is asked again when this group starts playing again
-    const groupDoc = findGroupByBucketKey(bucketKey);
+    const groupDoc = groupByBucketKey(bucketKey);
     await Promise.all([
         ...groupGames.map(g => deleteDoc(doc(db, COL_GAMES, g.id))),
         ...(groupDoc ? [deleteDoc(doc(db, COL_GROUPS, groupDoc.id))] : [])
@@ -1004,7 +984,7 @@ async function resetGroup(bucketKey) {
 // RENAME GROUP
 // =====================================================
 async function renameGroup(bucketKey) {
-    const group = findGroupByBucketKey(bucketKey);
+    const group = groupByBucketKey(bucketKey);
     if (!group) {
         alert("Can't rename this group — its data looks incomplete.");
         return;

@@ -84,12 +84,6 @@ const OFFSETS_5 = [[-8, -4], [ 4, -8], [ 8,  4], [-4,  8], [ 0, -10]];
 // UTILITY FUNCTIONS
 // =====================================================
 
-// Randomly picks n unique routes from the pool so no two players share the same path
-function pickRoutes(n) {
-  const shuffled = [...ROUTE_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
-}
-
 // Creates an SVG element with the given attributes and appends it to a parent element
 const SVG_NS = 'http://www.w3.org/2000/svg';
 function mk(tag, attrs, parent) {
@@ -150,7 +144,9 @@ function drawTrack(svg, route, pct, colour) {
 // Draws a detailed locomotive icon at (cx + ox, cy + oy).
 // Returns the score bubble <text> element so the caller can set its content.
 function drawTrain(svg, cx, cy, colour, playerInitials, ox, oy) {
-  const g = mk('g', { transform: `translate(${cx + ox},${cy + oy})` }, svg);
+  // pointer-events:none — trains aren't clickable themselves, and
+  // without this a train drawn near a stop marker steals its clicks
+  const g = mk('g', { transform: `translate(${cx + ox},${cy + oy})`, style: 'pointer-events:none' }, svg);
 
   // Smoke puffs above the funnel
   mk('ellipse', { cx: '1',  cy: '-27', rx: '5', ry: '4', fill: colour, opacity: '0.22' }, g);
@@ -250,21 +246,37 @@ function drawConnections(svg, strokeColour) {
   });
 }
 
+// Draws a small clickable "stop" marker at one point along a route —
+// one of these is drawn per player per past game, showing where their
+// journey was after that specific game (see drawMap's orderedGames).
+function drawStop(svg, x, y, colour, onClick) {
+  const dot = mk('circle', {
+    cx: x, cy: y, r: 4.5,
+    fill: colour, stroke: '#fff', 'stroke-width': 1.3,
+    style: 'cursor:pointer',
+  }, svg);
+  if (onClick) dot.addEventListener('click', onClick);
+  return dot;
+}
+
 // =====================================================
 // MAIN MAP RENDER FUNCTION
 //
-// svgId       — id of the <svg> element to draw into
-// stripId     — id of the score-strip <div>
-// players     — array of { name, pts, colour } objects
-// routes      — pre-generated route array (one route per player)
-// goal        — season target score (e.g. 1000)
-// mapBg       — background fill colour for the map canvas
-// trackColour — colour of the dashed background track network
-// cityStroke  — dot colour for non-terminus cities
-// termColour  — ring/label colour for Cape Town and Cairo
-// offsets     — per-player [ox, oy] to spread trains apart
+// svgId        — id of the <svg> element to draw into
+// stripId      — id of the score-strip <div>
+// players      — array of { name, pts, colour } objects
+// routes       — pre-generated route array (one route per player)
+// goal         — season target score (e.g. 1000)
+// mapBg        — background fill colour for the map canvas
+// trackColour  — colour of the dashed background track network
+// cityStroke   — dot colour for non-terminus cities
+// termColour   — ring/label colour for Cape Town and Cairo
+// offsets      — per-player [ox, oy] to spread trains apart
+// orderedGames — this group's games in date order, for per-game stop
+//                markers (optional — pass [] to skip them)
+// onStopClick  — called with the game object when a stop is clicked
 // =====================================================
-function drawMap(svgId, stripId, players, routes, goal, mapBg, trackColour, cityStroke, termColour, offsets) {
+function drawMap(svgId, stripId, players, routes, goal, mapBg, trackColour, cityStroke, termColour, offsets, orderedGames, onStopClick) {
   const svg   = document.getElementById(svgId);
   const strip = document.getElementById(stripId);
   svg.innerHTML   = '';
@@ -291,6 +303,24 @@ function drawMap(svgId, stripId, players, routes, goal, mapBg, trackColour, city
 
   // City nodes go on top of track lines
   drawCities(svg, mapBg, cityStroke, termColour);
+
+  // Stop markers: one per player per PAST game (not the most recent —
+  // that's where the train icon already sits), placed at their
+  // cumulative score at that point in the season. Clicking one shows
+  // that game's actual result — this is what turns the map from a
+  // re-skinned percentage into a real trip log of the season played.
+  if (orderedGames && orderedGames.length > 1) {
+    players.forEach((p, pi) => {
+      let cumulative = 0;
+      for (let gi = 0; gi < orderedGames.length - 1; gi++) {
+        const game = orderedGames[gi];
+        cumulative += game.scores[p.name] || 0;
+        const stopPct = Math.min(cumulative / goal, 1);
+        const pos = getTrainPos(routes[pi], stopPct);
+        drawStop(svg, pos.x, pos.y, p.colour, onStopClick ? () => onStopClick(game) : null);
+      }
+    });
+  }
 
   // Trains go on top of everything
   players.forEach((p, pi) => {
@@ -328,4 +358,151 @@ function drawMap(svgId, stripId, players, routes, goal, mapBg, trackColour, city
     `;
     strip.appendChild(cell);
   });
+}
+
+// Formats "YYYY-MM-DD" as "12 Jun 2026" (matches app.js's formatDate)
+function formatStopDate(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// =====================================================
+// SHARED PAGE INIT — called by map-3.html, map-4.html, map-5.html
+//
+// options:
+//   playerCount   — 3, 4, or 5
+//   theme         — { mapBg, trackColour, cityStroke, termColour }
+//   offsets       — OFFSETS_3 / OFFSETS_4 / OFFSETS_5
+//   fallbackNames — ['Player 1', 'Player 2', ...] shown before any
+//                   real group data has loaded (or none exists yet)
+// =====================================================
+async function initSeasonMap(options) {
+  const mod       = await import('./map-firebase.js');
+  const bucketKey = new URLSearchParams(window.location.search).get('group');
+  const raw       = await mod.fetchMapData(bucketKey).catch(() => null);
+
+  const GOAL         = raw ? raw.goal : 1000;
+  const groupId      = raw ? raw.groupId : null;
+  const orderedGames = (raw && raw.orderedGames) || [];
+  const players       = (raw && raw.players.length >= options.playerCount)
+    ? raw.players.slice(0, options.playerCount)
+    : options.fallbackNames.map(name => ({ name, pts: 0 }));
+
+  // Show the group's real name in the page badge, if it has one
+  if (raw && raw.groupName) {
+    const badge = document.querySelector('.page-badge');
+    if (badge) badge.textContent = raw.groupName;
+  }
+
+  // ---- Routes: reuse the group's saved assignment, or pick + save new ones ----
+  const persistedRoutes = raw && raw.mapRoutes;
+  let routeIndices;
+  if (persistedRoutes && players.every(p => typeof persistedRoutes[p.name] === 'number')) {
+    routeIndices = players.map(p => persistedRoutes[p.name]);
+  } else {
+    routeIndices = ROUTE_POOL.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, players.length);
+    if (groupId) {
+      const toSave = {};
+      players.forEach((p, i) => { toSave[p.name] = routeIndices[i]; });
+      mod.saveGroupMapSettings(groupId, { routes: toSave });
+    }
+  }
+  const currentRoutes = routeIndices.map(i => ROUTE_POOL[i]);
+
+  // ---- Colours: reuse the group's saved assignment, or default order ----
+  const persistedColours = raw && raw.mapColours;
+  let assignments;
+  if (persistedColours && players.every(p => persistedColours[p.name] != null)) {
+    assignments = players.map(p => {
+      const idx = COLOUR_OPTIONS.findIndex(c => c.key === persistedColours[p.name]);
+      return idx === -1 ? 0 : idx;
+    });
+  } else {
+    assignments = players.map((_, i) => i);
+  }
+
+  function persistColours() {
+    if (!groupId) return;
+    const toSave = {};
+    players.forEach((p, i) => { toSave[p.name] = COLOUR_OPTIONS[assignments[i]].key; });
+    mod.saveGroupMapSettings(groupId, { colours: toSave });
+  }
+
+  function selectColour(pi, ci) {
+    const prev = assignments.indexOf(ci);
+    if (prev !== -1 && prev !== pi) assignments[prev] = assignments[pi];
+    assignments[pi] = ci;
+    updateSwatches();
+    renderMap();
+    persistColours();
+  }
+
+  function updateSwatches() {
+    document.querySelectorAll('.player-row').forEach((row, pi) => {
+      row.querySelector('.player-name').style.color = COLOUR_OPTIONS[assignments[pi]].hex;
+      row.querySelectorAll('.swatch').forEach((btn, ci) => {
+        btn.classList.toggle('selected', assignments[pi] === ci);
+        btn.classList.remove('taken');
+        btn.disabled = false;
+      });
+    });
+  }
+
+  function showStopDetail(game) {
+    const panel = document.getElementById('game-detail');
+    if (!panel) return;
+    const chips = Object.entries(game.scores)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, pts]) => `${name}: ${pts}`)
+      .join('  ·  ');
+    const title = formatStopDate(game.date) + (game.gameName ? ` — ${game.gameName}` : '');
+    panel.innerHTML = `<strong>${title}</strong><br>${chips}`;
+  }
+
+  function renderMap() {
+    const mapped = players.map((p, pi) => ({ name: p.name, pts: p.pts, colour: COLOUR_OPTIONS[assignments[pi]].hex }));
+    drawMap('map-svg', 'score-strip', mapped, currentRoutes, GOAL,
+      options.theme.mapBg, options.theme.trackColour, options.theme.cityStroke, options.theme.termColour,
+      options.offsets, orderedGames, showStopDetail);
+  }
+
+  function buildPicker() {
+    const bar = document.getElementById('setup-bar');
+    players.forEach((p, pi) => {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'player-name';
+      nameSpan.textContent = p.name;
+      row.appendChild(nameSpan);
+
+      const swatchDiv = document.createElement('div');
+      swatchDiv.className = 'swatches';
+      COLOUR_OPTIONS.forEach((col, ci) => {
+        const btn = document.createElement('button');
+        btn.className = 'swatch';
+        btn.style.background = col.hex;
+        btn.title = col.label;
+        btn.onclick = () => selectColour(pi, ci);
+        swatchDiv.appendChild(btn);
+      });
+
+      row.appendChild(swatchDiv);
+      bar.appendChild(row);
+    });
+  }
+
+  // Detail panel only makes sense once there's at least one past game
+  // to click on (orderedGames.length > 1, since the most recent game
+  // is where the train icon already sits, not a clickable stop)
+  const detailPanel = document.getElementById('game-detail');
+  if (detailPanel && (!orderedGames || orderedGames.length <= 1)) {
+    detailPanel.style.display = 'none';
+  }
+
+  buildPicker();
+  updateSwatches();
+  renderMap();
 }

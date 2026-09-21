@@ -161,17 +161,14 @@
       try {
         var mod    = await import('./map-firebase.js');
         var result = await mod.fetchGroups();
-        var groups = result.groups || [];
-
-        // Filter to only groups the map pages support (3–5 players)
-        groups = groups.filter(function(g) { return g.players.length >= 3 && g.players.length <= 5; });
+        var groups = result.groups || []; // already limited to 3–5 player groups
 
         if (groups.length === 0) {
           showManual();
         } else if (groups.length === 1) {
           // Only one group — go straight to its map
           var g = groups[0];
-          window.location.replace('map-' + g.players.length + '.html?group=' + encodeURIComponent(g.groupKey));
+          window.location.replace('map-' + g.players.length + '.html?group=' + encodeURIComponent(g.bucketKey));
         } else {
           // Multiple groups — show selection
           loadingEl.style.display = 'none';
@@ -180,10 +177,12 @@
           groups.forEach(function(g) {
             var a = document.createElement('a');
             a.className = 'group-btn';
-            a.href = 'map-' + g.players.length + '.html?group=' + encodeURIComponent(g.groupKey);
+            a.href = 'map-' + g.players.length + '.html?group=' + encodeURIComponent(g.bucketKey);
             a.innerHTML =
-              g.players.join('  ·  ') +
-              '<span class="group-btn-sub">' + g.gameCount + ' game' + (g.gameCount !== 1 ? 's' : '') + '</span>';
+              (g.name || g.players.join('  ·  ')) +
+              '<span class="group-btn-sub">' +
+              (g.name ? g.players.join(' · ') + ' — ' : '') +
+              g.gameCount + ' game' + (g.gameCount !== 1 ? 's' : '') + '</span>';
             container.appendChild(a);
           });
         }
