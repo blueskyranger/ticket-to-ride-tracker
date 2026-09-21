@@ -203,12 +203,10 @@
                 </div>
                 <!-- Score inputs are rendered dynamically when players are checked -->
                 <div id="game-score-inputs"></div>
-                <!-- Shown only when the selected players are a NEW group -->
-                <div id="game-goal-section" class="form-group hidden">
-                    <label for="game-goal">Season Goal for this group <span class="label-hint">(points)</span></label>
-                    <input type="number" id="game-goal" placeholder="1000" min="1" inputmode="numeric">
-                    <small>New group! First player to reach this total wins the season.</small>
-                </div>
+                <!-- Filled in by JS once players are checked: either a
+                     "which group?" picker, or name+goal fields for a new
+                     group. See updateGroupSection() in app.js. -->
+                <div id="game-goal-section" class="hidden"></div>
                 <div class="form-group">
                     <label for="game-date">Date</label>
                     <input type="date" id="game-date">

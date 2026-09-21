@@ -251,20 +251,52 @@ async function saveSetup() {
 // GROUP GOALS
 // Each player group has its own season goal, stored as
 // one document per group per season in COL_GROUPS.
+//
+// A "bucket key" identifies one scoreboard card:
+//   - for games saved with this feature, it's the group's own
+//     Firestore doc id (game.groupId)
+//   - for older games saved before groups had an id, it falls
+//     back to the groupKey (sorted player list) they were saved
+//     with, same as the app behaved before this change
 // =====================================================
 
-// Finds the group doc for a groupKey in the current season
-// Returns undefined if this group hasn't set a goal yet
-function findGroup(groupKey) {
-    return state.groups.find(g => g.groupKey === groupKey);
+// All existing groups whose player list matches this exact groupKey.
+// Can return more than one once groups can share a roster.
+function groupsForKey(groupKey) {
+    return state.groups.filter(g => g.groupKey === groupKey);
 }
 
-// Returns the goal for a group.
-// Groups created before this feature have no group doc,
-// so they fall back to the global default goal in config.
-function groupGoal(groupKey) {
-    const group = findGroup(groupKey);
+// The bucket key a given game belongs on the scoreboard under.
+function bucketKeyFor(game) {
+    return game.groupId || game.groupKey;
+}
+
+// Finds the group doc for a bucket key (see note above).
+// Returns undefined for legacy games whose group doc was deleted.
+function findGroupByBucketKey(bucketKey) {
+    // New-style bucket keys are a group's own Firestore id — exact match.
+    const byId = state.groups.find(g => g.id === bucketKey);
+    if (byId) return byId;
+
+    // Legacy games (no groupId) fall back to matching by groupKey. Only
+    // match against groups saved under the OLD schema (no `name` field
+    // at all) — otherwise, once a named group shares a roster with the
+    // legacy group, this could resolve to the wrong one (a bug caught
+    // in testing: both cards ended up showing the new group's name).
+    return state.groups.find(g => g.groupKey === bucketKey && g.name === undefined);
+}
+
+// Returns the goal for a group, falling back to the global
+// default goal in config if no group doc matches (legacy data).
+function groupGoalFor(bucketKey) {
+    const group = findGroupByBucketKey(bucketKey);
     return group ? Number(group.goal) : Number(state.config.goal);
+}
+
+// The label shown on a group's card: its chosen name, or the
+// player list if it was never named (or predates this feature).
+function groupDisplayName(group, players) {
+    return (group && group.name) ? group.name : players.join("  ·  ");
 }
 
 // True once the first groups snapshot has arrived.
@@ -288,31 +320,58 @@ function listenToGroups() {
 // ADD GAME MODAL
 // =====================================================
 
-function openAddGame() {
+// When "Add Result" is clicked on a specific group's card, the modal
+// opens pre-ticked for that group's players and locked to that exact
+// group — no "which group?" picker, since we already know which one.
+// If the player selection is then edited away from this exact roster,
+// updateGroupSection() falls back to the normal picker/new-group flow.
+let lockedGroupId  = null;
+let lockedGroupKey = null;
+
+// lockGroupId + preselect are only passed when opened via a group
+// card's "Add Result" button (see addResultToGroup below).
+function openAddGame({ lockGroupId = null, preselect = [] } = {}) {
     const modal = document.getElementById("modal-add-game");
     modal.classList.remove("hidden");
 
     // Default to today's date
     document.getElementById("game-date").value = todayISO();
 
-    // Render one checkbox per player
+    // Render one checkbox per player, pre-ticking any from preselect
     document.getElementById("game-player-checkboxes").innerHTML =
         state.config.players.map(p =>
             `<div class="player-check-item">
-               <input type="checkbox" id="chk-${p}" value="${p}" onchange="updateScoreInputs()">
+               <input type="checkbox" id="chk-${p}" value="${p}" onchange="updateScoreInputs()"
+                      ${preselect.includes(p) ? "checked" : ""}>
                <label for="chk-${p}">${p}</label>
              </div>`
         ).join("");
 
-    document.getElementById("game-score-inputs").innerHTML = "";
+    lockedGroupId  = lockGroupId;
+    lockedGroupKey = lockGroupId ? [...preselect].sort().join(",") : null;
 
-    // Reset the new-group goal field (hidden until a new combo is picked)
-    document.getElementById("game-goal").value = state.config.goal;
-    document.getElementById("game-goal-section").classList.add("hidden");
+    // Builds score rows for any pre-ticked players and the group
+    // section (picker/new-group fields, or nothing if locked)
+    updateScoreInputs();
+}
+
+// Called from the "Add Result" button on an existing group's card.
+function addResultToGroup(bucketKey) {
+    const groupGames = state.games.filter(g => bucketKeyFor(g) === bucketKey);
+    if (groupGames.length === 0) return;
+
+    const players = groupGames[0].groupKey.split(",");
+    const group   = findGroupByBucketKey(bucketKey);
+
+    // Every group should have a doc (it's created alongside its first
+    // game), but fall back to the normal unlocked flow just in case.
+    openAddGame({ lockGroupId: group ? group.id : null, preselect: players });
 }
 
 function closeAddGame() {
     document.getElementById("modal-add-game").classList.add("hidden");
+    lockedGroupId  = null;
+    lockedGroupKey = null;
 }
 
 // Renders a score input for each checked player
@@ -332,19 +391,87 @@ function updateScoreInputs() {
             ).join("");
     }
 
-    updateGoalInput();
+    updateGroupSection();
 }
 
-// Shows the season-goal field only when the selected players
-// are a NEW group (no goal stored yet for this season)
-function updateGoalInput() {
+// Decides what to show below the score inputs, based on whether the
+// checked players match any existing group(s):
+//   - locked to a group (opened via its card's "Add Result" button)
+//     AND the roster is unchanged -> nothing to show, it's unambiguous
+//   - no matches   -> this MUST be a new group: show name + goal fields
+//   - 1+ matches   -> ask "which group is this for?", with a
+//                     "start a new group" option in the same list
+function updateGroupSection() {
     const checked = checkedPlayers();
     const section = document.getElementById("game-goal-section");
-    const isNewGroup =
-        checked.length >= 2 &&
-        !findGroup([...checked].sort().join(","));
 
-    section.classList.toggle("hidden", !isNewGroup);
+    if (checked.length < 2) {
+        section.innerHTML = "";
+        section.classList.add("hidden");
+        return;
+    }
+
+    const groupKey = [...checked].sort().join(",");
+
+    if (lockedGroupId && groupKey === lockedGroupKey) {
+        section.innerHTML = "";
+        section.classList.add("hidden");
+        return;
+    }
+
+    const matches  = groupsForKey(groupKey);
+
+    section.classList.remove("hidden");
+    if (matches.length === 0) {
+        section.innerHTML = newGroupFieldsHtml();
+    } else {
+        section.innerHTML = groupPickerHtml(matches);
+        onGroupPickerChange();
+    }
+}
+
+// Dropdown listing existing groups with this exact roster, plus an
+// option to start a brand new group instead.
+function groupPickerHtml(matches) {
+    // Fall back to the group's own player list if it has no name yet —
+    // every match here shares the same roster, so g.groupKey always has it.
+    const options = matches
+        .map(g => `<option value="${g.id}">${groupDisplayName(g, g.groupKey.split(","))}</option>`)
+        .join("");
+
+    return `
+        <div class="form-group">
+            <label for="game-group-select">Which group is this for?</label>
+            <select id="game-group-select" onchange="onGroupPickerChange()">
+                ${options}
+                <option value="__new__">➕ Start a new group with these players</option>
+            </select>
+        </div>
+        <div id="game-new-group-fields"></div>`;
+}
+
+// Shows the name+goal fields only when "start a new group" is picked
+// from the dropdown above.
+function onGroupPickerChange() {
+    const select = document.getElementById("game-group-select");
+    const target = document.getElementById("game-new-group-fields");
+    target.innerHTML = (select.value === "__new__") ? newGroupFieldsHtml() : "";
+}
+
+// Name + season goal fields shown whenever a brand new group is being
+// created (either because no existing group matches, or the user
+// explicitly chose "start a new group" from the picker).
+function newGroupFieldsHtml() {
+    return `
+        <div class="form-group">
+            <label for="game-group-name">Name this group <span class="label-hint">(optional)</span></label>
+            <input type="text" id="game-group-name" placeholder="e.g. Family Night">
+        </div>
+        <div class="form-group">
+            <label for="game-goal">Season Goal for this group <span class="label-hint">(points)</span></label>
+            <input type="number" id="game-goal" value="${state.config.goal}" placeholder="1000" min="1" inputmode="numeric">
+            <small>New group! First player to reach this total wins the season.</small>
+        </div>`;
 }
 
 // Returns names of currently checked players
@@ -366,14 +493,27 @@ async function submitGame() {
     }
 
     const date     = document.getElementById("game-date").value || todayISO();
-    // groupKey is a sorted comma-separated player list — used to identify unique groups
+    // groupKey is a sorted comma-separated player list — used to find groups with this roster
     const groupKey = [...players].sort().join(",");
 
-    // First game for this group this season? Save their chosen goal first.
-    let goalVal = null;
-    if (!findGroup(groupKey)) {
-        goalVal = parseInt(document.getElementById("game-goal").value);
-        if (isNaN(goalVal) || goalVal < 1) {
+    // Opened via a specific group's "Add Result" button, and the roster
+    // hasn't been edited since? Skip the picker entirely — we already
+    // know exactly which group this belongs to.
+    const isLocked = lockedGroupId && groupKey === lockedGroupKey;
+
+    // Otherwise: is this result for a brand new group? Either no existing
+    // group has this roster at all, or the picker's "start a new group"
+    // option is selected. Either way, the dropdown (if present) tells us.
+    const select     = isLocked ? null : document.getElementById("game-group-select");
+    const isNewGroup = !isLocked && (!select || select.value === "__new__");
+
+    // If new, validate the name/goal fields now, before touching Firestore.
+    let newGroupName = "";
+    let newGroupGoal = null;
+    if (isNewGroup) {
+        newGroupName = document.getElementById("game-group-name").value.trim();
+        newGroupGoal = parseInt(document.getElementById("game-goal").value);
+        if (isNaN(newGroupGoal) || newGroupGoal < 1) {
             alert("Enter a valid season goal for this new group.");
             return;
         }
@@ -387,13 +527,24 @@ async function submitGame() {
     saveBtn.textContent = "Saving…";
 
     try {
-        if (goalVal !== null) {
-            await addDoc(collection(db, COL_GROUPS), {
+        // groupId is the Firestore doc id that ties this game to one
+        // specific scoreboard card. For an existing group it's whatever
+        // the picker selected; for a new group we create the group doc
+        // first and use the id Firestore hands back.
+        let groupId;
+        if (isLocked) {
+            groupId = lockedGroupId;
+        } else if (isNewGroup) {
+            const groupRef = await addDoc(collection(db, COL_GROUPS), {
                 groupKey,
-                goal:      goalVal,
+                name:      newGroupName,
+                goal:      newGroupGoal,
                 season:    state.config.season ?? 0,
                 createdAt: serverTimestamp()
             });
+            groupId = groupRef.id;
+        } else {
+            groupId = select.value;
         }
 
         await addDoc(collection(db, COL_GAMES), {
@@ -401,6 +552,7 @@ async function submitGame() {
             players,
             scores,
             groupKey,
+            groupId,
             gameName: pickGameName(),
             season: state.config.season ?? 0,
             createdAt: serverTimestamp()
@@ -447,42 +599,61 @@ function renderGroups() {
         return;
     }
 
-    // Bucket games by groupKey
-    const groups = {};
+    // Bucket games by bucket key (groupId, or groupKey for legacy games —
+    // see bucketKeyFor). Two groups can now share the same roster, so this
+    // is no longer simply "one card per unique player combination".
+    const buckets = {};
     state.games.forEach(game => {
-        if (!groups[game.groupKey]) groups[game.groupKey] = [];
-        groups[game.groupKey].push(game);
+        const key = bucketKeyFor(game);
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(game);
     });
 
-    container.innerHTML = Object.entries(groups)
-        .map(([groupKey, games]) => renderGroupSection(groupKey, games))
+    container.innerHTML = Object.entries(buckets)
+        .map(([bucketKey, games]) => renderGroupSection(bucketKey, games))
         .join("");
 
     checkForWinners();
 }
 
 // Builds the HTML for one group card (header + leaderboard + history)
-function renderGroupSection(groupKey, games) {
-    const players = groupKey.split(",");
-    const totals  = calcTotals(players, games);
-    const sorted  = [...totals].sort((a, b) => b.total - a.total);
-    const goal    = groupGoal(groupKey);   // each group has its own goal
-    const count   = games.length;
+function renderGroupSection(bucketKey, games) {
+    // Every game in a bucket shares the same roster, so any one of them
+    // tells us the player list.
+    const groupKey = games[0].groupKey;
+    const players  = groupKey.split(",");
+    const group    = findGroupByBucketKey(bucketKey);
+    const totals   = calcTotals(players, games);
+    const sorted   = [...totals].sort((a, b) => b.total - a.total);
+    const goal     = group ? Number(group.goal) : Number(state.config.goal);
+    const count    = games.length;
+    const label    = groupDisplayName(group, players);
 
     const rows = sorted.map((entry, i) => renderRow(entry, i, goal)).join("");
     const hist = renderHistory(games);
 
-    // JSON.stringify safely escapes the groupKey so player names with
+    // JSON.stringify safely escapes the bucketKey so player names with
     // special characters don't break the onclick attribute
-    const escapedKey = JSON.stringify(groupKey);
+    const escapedKey = JSON.stringify(bucketKey);
 
     return `
         <div class="group-section">
           <div class="group-header">
-            <span class="group-title">🚂 ${players.join("  ·  ")}</span>
+            <div class="group-title-block">
+              <span class="group-title">🚂 ${label}</span>
+              ${group && group.name ? `<span class="group-subtitle">${players.join("  ·  ")}</span>` : ""}
+            </div>
             <div class="group-header-right">
               <span class="group-goal">🏆 ${goal.toLocaleString()}</span>
               <span class="group-count">${count} game${count !== 1 ? "s" : ""}</span>
+              <button class="btn-group-rename"
+                      onclick='renameGroup(${escapedKey})'
+                      title="Rename this group"
+                      aria-label="Rename ${players.join(" and ")}'s group">✏️</button>
+              <button class="btn-group-add"
+                      onclick='addResultToGroup(${escapedKey})'
+                      title="Add a result for this group"
+                      aria-label="Add a result for ${players.join(" and ")}">＋</button>
               <button class="btn-group-reset"
                       onclick='resetGroup(${escapedKey})'
                       title="Reset group scores"
@@ -596,22 +767,23 @@ function checkForWinners() {
     if (!groupsLoaded) return;
 
     // Track who we've already celebrated this session so it doesn't
-    // re-fire. Stored as a JSON array of "groupKey|player" strings.
+    // re-fire. Stored as a JSON array of "bucketKey|player" strings.
     const celebrated = JSON.parse(sessionStorage.getItem("ttr_celebrated") || "[]");
 
-    // Bucket games by group, same as the scoreboard does
-    const groups = {};
+    // Bucket games the same way the scoreboard does
+    const buckets = {};
     state.games.forEach(game => {
-        if (!groups[game.groupKey]) groups[game.groupKey] = [];
-        groups[game.groupKey].push(game);
+        const key = bucketKeyFor(game);
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(game);
     });
 
-    Object.entries(groups).forEach(([groupKey, games]) => {
-        const goal   = groupGoal(groupKey);
-        const totals = calcTotals(groupKey.split(","), games);
+    Object.entries(buckets).forEach(([bucketKey, games]) => {
+        const goal   = groupGoalFor(bucketKey);
+        const totals = calcTotals(games[0].groupKey.split(","), games);
 
         totals.forEach(({ name, total }) => {
-            const celebrationKey = `${groupKey}|${name}`;
+            const celebrationKey = `${bucketKey}|${name}`;
             if (total >= goal && !celebrated.includes(celebrationKey)) {
                 celebrated.push(celebrationKey);
                 sessionStorage.setItem("ttr_celebrated", JSON.stringify(celebrated));
@@ -792,13 +964,15 @@ async function resetAllData() {
 
 // =====================================================
 // RESET ONE GROUP
-// Deletes all games for a single player group in the current season.
+// Deletes all games in a single group's bucket for the current season.
 // The Firestore listener re-renders automatically once docs are removed.
 // =====================================================
-async function resetGroup(groupKey) {
-    const groupGames = state.games.filter(g => g.groupKey === groupKey);
-    const players    = groupKey.split(",").join(" · ");
-    const count      = groupGames.length;
+async function resetGroup(bucketKey) {
+    const groupGames = state.games.filter(g => bucketKeyFor(g) === bucketKey);
+    if (groupGames.length === 0) return;
+
+    const players = groupGames[0].groupKey.split(",").join(" · ");
+    const count   = groupGames.length;
 
     const confirmed = confirm(
         `Reset scores for ${players}?\n\n` +
@@ -810,11 +984,46 @@ async function resetGroup(groupKey) {
 
     // Delete the group's games AND its goal doc, so the goal
     // is asked again when this group starts playing again
-    const groupDoc = findGroup(groupKey);
+    const groupDoc = findGroupByBucketKey(bucketKey);
     await Promise.all([
         ...groupGames.map(g => deleteDoc(doc(db, COL_GAMES, g.id))),
         ...(groupDoc ? [deleteDoc(doc(db, COL_GROUPS, groupDoc.id))] : [])
     ]);
+}
+
+// =====================================================
+// RENAME GROUP
+// =====================================================
+async function renameGroup(bucketKey) {
+    const group = findGroupByBucketKey(bucketKey);
+    if (!group) {
+        alert("Can't rename this group — its data looks incomplete.");
+        return;
+    }
+
+    const input = prompt(
+        "Name this group (leave blank to just show the player names):",
+        group.name || ""
+    );
+    if (input === null) return; // cancelled
+    const newName = input.trim();
+
+    try {
+        await setDoc(doc(db, COL_GROUPS, group.id), { name: newName }, { merge: true });
+
+        // Legacy groups (created before groups had names) are only linked
+        // to their games via groupKey, not groupId — see bucketKeyFor().
+        // Now that this group has a name, backfill groupId onto those
+        // games too, so it's unambiguous even if another group is later
+        // created with this same roster (the exact bug fixed earlier).
+        const legacyGames = state.games.filter(g => !g.groupId && g.groupKey === group.groupKey);
+        await Promise.all(
+            legacyGames.map(g => setDoc(doc(db, COL_GAMES, g.id), { groupId: group.id }, { merge: true }))
+        );
+    } catch (err) {
+        console.error("Failed to rename group:", err);
+        alert("Could not rename this group — check your internet connection and try again.\n\n" + err.message);
+    }
 }
 
 // =====================================================
@@ -873,8 +1082,10 @@ window.addSetupPlayer       = addSetupPlayer;
 window.removeSetupPlayer    = removeSetupPlayer;
 window.saveSetup            = saveSetup;
 window.openAddGame          = openAddGame;
+window.addResultToGroup     = addResultToGroup;
 window.closeAddGame         = closeAddGame;
 window.updateScoreInputs    = updateScoreInputs;
+window.onGroupPickerChange  = onGroupPickerChange;
 window.submitGame           = submitGame;
 window.deleteGame           = deleteGame;
 window.toggleHistory        = toggleHistory;
@@ -887,6 +1098,7 @@ window.saveSettings         = saveSettings;
 window.newSeason            = newSeason;
 window.resetAllData         = resetAllData;
 window.resetGroup           = resetGroup;
+window.renameGroup          = renameGroup;
 
 // =====================================================
 // BOOT
